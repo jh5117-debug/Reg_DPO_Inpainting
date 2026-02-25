@@ -1,0 +1,9 @@
+prompt:
+- Two men stand behind a fence, one holding a red and white umbrella, under an overcast
+  sky at what appears to be a race track.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:13:07.364922'

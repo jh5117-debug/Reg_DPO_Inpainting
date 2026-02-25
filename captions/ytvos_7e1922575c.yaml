@@ -1,0 +1,9 @@
+prompt:
+- A man and two women handle a black and white cow in a snowy field, with bare trees
+  and a fence in the background.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:15:55.355787'

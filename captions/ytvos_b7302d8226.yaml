@@ -1,0 +1,10 @@
+prompt:
+- A small waterfall cascades down a rocky wall, surrounded by lush greenery, with
+  a statue of a figure in the center and two individuals partially visible at the
+  edges.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:32:50.023154'

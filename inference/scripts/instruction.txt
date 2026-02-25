@@ -1,0 +1,164 @@
+模式 1 ：OR有text
+CUDA_VISIBLE_DEVICES=3 python run_OR.py \
+  --dataset davis \
+  --video_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/JPEGImages/Full-Resolution \
+  --mask_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/Annotations/Full-Resolution \
+  --save_path results_OR_text \
+  --video_length 60 \
+  --ref_stride 6 --neighbor_length 25 --subvideo_length 80 \
+  --mask_dilation_iter 8 \
+  --height 360 --width 720 \
+  --base_model_path /home/hj/DiffuEraser_new/weights/stable-diffusion-v1-5 \
+  --vae_path /home/hj/DiffuEraser_new/weights/sd-vae-ft-mse \
+  --diffueraser_path /home/hj/DiffuEraser_new/weights/diffuEraser \
+  --propainter_model_dir /home/hj/DiffuEraser_new/weights/propainter \
+  --pcm_weights_path /home/hj/DiffuEraser_new/weights/PCM_Weights \
+  --offload_models \
+  --save_comparison \
+  --use_text \
+  --unified_prompt_yaml prompt_cache/all_captions_OR.yaml \
+  --text_guidance_scale 7.5
+
+
+
+模式 2：OR_baseline
+CUDA_VISIBLE_DEVICES=1 python run_OR.py \
+  --dataset davis \
+  --video_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/JPEGImages/Full-Resolution \
+  --mask_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/Annotations/Full-Resolution \
+  --save_path results_OR_baseline \
+  --video_length 100 \
+  --ref_stride 3 --neighbor_length 25 --subvideo_length 80 \
+  --mask_dilation_iter 8 \
+  --height 360 --width 720 \
+  --base_model_path /home/hj/DiffuEraser_new/weights/stable-diffusion-v1-5 \
+  --vae_path /home/hj/DiffuEraser_new/weights/sd-vae-ft-mse \
+  --diffueraser_path /home/hj/DiffuEraser_new/weights/diffuEraser \
+  --propainter_model_dir /home/hj/DiffuEraser_new/weights/propainter \
+  --pcm_weights_path /home/hj/DiffuEraser_new/weights/PCM_Weights \
+  --save_comparison
+
+
+
+
+
+模式 3：OR_Vbench
+davis:
+CUDA_VISIBLE_DEVICES=2 \
+python run_OR.py \
+  --dataset davis \
+  --video_root /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p \
+  --mask_root /home/hj/Train_Diffueraser/dataset/DAVIS/Annotations/480p \
+  --save_path results_OR_baseline \
+  --video_length 100 \
+  --ref_stride 3 \
+  --neighbor_length 25 \
+  --subvideo_length 80 \
+  --mask_dilation_iter 8 \
+  --height 512 \
+  --width 512 \
+  --base_model_path /home/hj/DiffuEraser_new/weights/stable-diffusion-v1-5 \
+  --vae_path /home/hj/DiffuEraser_new/weights/sd-vae-ft-mse \
+  --diffueraser_path /home/hj/DiffuEraser_new/weights/diffuEraser \
+  --propainter_model_dir /home/hj/DiffuEraser_new/weights/propainter \
+  --pcm_weights_path /home/hj/DiffuEraser_new/weights/PCM_Weights \
+  --save_comparison \
+  --eval_vbench
+
+
+ytvos:
+CUDA_VISIBLE_DEVICES=2 \
+python run_OR.py \
+  --dataset ytvos \
+  --video_root /home/hj/Train_Diffueraser/dataset/YTBV/JPEGImages \
+  --mask_root /home/hj/Train_Diffueraser/dataset/YTBV/Annotations \
+  --save_path results_OR_baseline \
+  --video_length 100 \
+  --ref_stride 3 \
+  --neighbor_length 25 \
+  --subvideo_length 80 \
+  --mask_dilation_iter 8 \
+  --height 512 \
+  --width 512 \
+  --base_model_path /home/hj/DiffuEraser_new/weights/stable-diffusion-v1-5 \
+  --vae_path /home/hj/DiffuEraser_new/weights/sd-vae-ft-mse \
+  --diffueraser_path /home/hj/DiffuEraser_new/weights/diffuEraser \
+  --propainter_model_dir /home/hj/DiffuEraser_new/weights/propainter \
+  --pcm_weights_path /home/hj/DiffuEraser_new/weights/PCM_Weights \
+  --save_comparison \
+  --eval_vbench
+
+
+
+命令 1：BR + use_text
+CUDA_VISIBLE_DEVICES=2 python run_BR.py \
+  --dataset davis \
+  --video_root /home/hj/DiffuEraser_new/dataset/davis/JPEGImages_432_240/ \
+  --mask_root /home/hj/DiffuEraser_new/dataset/davis/test_masks/ \
+  --gt_root /home/hj/DiffuEraser_new/dataset/davis/JPEGImages_432_240/ \
+  --save_path results_BR_text_guided \
+  --compute_metrics \
+  --save_comparison \
+  --base_model_path /home/hj/DiffuEraser_new/weights/stable-diffusion-v1-5 \
+  --vae_path /home/hj/DiffuEraser_new/weights/sd-vae-ft-mse \
+  --diffueraser_path /home/hj/DiffuEraser_new/weights/diffuEraser \
+  --propainter_model_dir /home/hj/DiffuEraser_new/weights/propainter \
+  --pcm_weights_path /home/hj/DiffuEraser_new/weights/PCM_Weights \
+  --i3d_model_path /home/hj/DiffuEraser_new/weights/i3d_rgb_imagenet.pt \
+  --raft_model_path /home/hj/DiffuEraser_new/weights/propainter/raft-things.pth \
+  --ref_stride 3 --neighbor_length 25 --subvideo_length 80 \
+  --mask_dilation_iter 0 \
+  --video_length 100 \
+  --use_text \
+  --prompt_root /home/hj/DiffuEraser_new/prompt_cache/all_captions.yaml \
+  --text_guidance_scale 3.5  # <--- 强制全局使用 3.5
+
+
+
+命令 2：BR Baseline
+CUDA_VISIBLE_DEVICES=2 python run_BR.py \
+  --dataset davis \
+  --video_root /home/hj/DiffuEraser_new/dataset/davis/JPEGImages_432_240/ \
+  --mask_root /home/hj/DiffuEraser_new/dataset/davis/test_masks/ \
+  --gt_root /home/hj/DiffuEraser_new/dataset/davis/JPEGImages_432_240/ \
+  --save_path results_BR_baseline \
+  --compute_metrics \
+  --save_comparison \
+  --base_model_path /home/hj/DiffuEraser_new/weights/stable-diffusion-v1-5 \
+  --vae_path /home/hj/DiffuEraser_new/weights/sd-vae-ft-mse \
+  --diffueraser_path /home/hj/DiffuEraser_new/weights/diffuEraser \
+  --propainter_model_dir /home/hj/DiffuEraser_new/weights/propainter \
+  --pcm_weights_path /home/hj/DiffuEraser_new/weights/PCM_Weights \
+  --i3d_model_path /home/hj/DiffuEraser_new/weights/i3d_rgb_imagenet.pt \
+  --raft_model_path /home/hj/DiffuEraser_new/weights/propainter/raft-things.pth \
+  --ref_stride 3 --neighbor_length 25 --subvideo_length 80 \
+  --mask_dilation_iter 0 \
+  --video_length 100
+
+
+DPO-dataset:
+rm -rf dpo_data/*
+CUDA_VISIBLE_DEVICES=1 /home/hj/miniconda/envs/diffueraser/bin/python generate_dpo_negatives.py \
+    --davis_root dataset/DAVIS \
+    --ytvos_root dataset/YTBV \
+    --output_dir dpo_data \
+    --clip_length 22 \
+    --clip_stride 11 \
+    --num_candidates 4 \
+    --max_videos 100 \
+    --comparison_fps 8 \
+    --height 512 --width 512 \
+    --base_model_path /home/hj/DiffuEraser_new/weights/stable-diffusion-v1-5 \
+    --vae_path /home/hj/DiffuEraser_new/weights/sd-vae-ft-mse \
+    --diffueraser_path /home/hj/DiffuEraser_new/weights/diffuEraser \
+    --propainter_model_dir /home/hj/DiffuEraser_new/weights/propainter \
+    --pcm_weights_path /home/hj/DiffuEraser_new/weights/PCM_Weights \
+   
+
+
+
+
+
+rm -rf dpo_data/*
+bash run_dpo_dataset.sh
+tail -f dpo_data/run.log

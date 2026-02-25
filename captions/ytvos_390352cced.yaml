@@ -1,0 +1,9 @@
+prompt:
+- A fish tank with various ornamental goldfish, aquatic plants, and a dark background,
+  illuminated by soft lighting.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T07:55:41.104629'

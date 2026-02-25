@@ -1,0 +1,10 @@
+prompt:
+- a dry, sandy landscape with sparse vegetation and a clear blue sky, viewed from
+  behind a large animal, possibly a camel or elephant, with a red object visible in
+  the distance.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:22:48.609593'

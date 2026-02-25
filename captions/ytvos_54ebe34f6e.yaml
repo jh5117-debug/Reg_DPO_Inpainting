@@ -1,0 +1,9 @@
+prompt:
+- A snowboarder practices on a red rail in a snowy park, with other skiers and snowboarders
+  in the background against a backdrop of bare trees and a clear sky.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:03:56.161737'

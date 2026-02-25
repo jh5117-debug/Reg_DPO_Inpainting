@@ -1,0 +1,9 @@
+prompt:
+- A green parrot perches on a branch, eating leafy greens near a metal bowl, with
+  blurred foliage in the background.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T07:52:50.724054'

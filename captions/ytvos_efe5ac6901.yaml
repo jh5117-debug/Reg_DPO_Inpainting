@@ -1,0 +1,9 @@
+prompt:
+- A tranquil pond surrounded by rocks and trees, with flamingos and a swan wading
+  in the water, reflecting the greenery above.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:49:18.558291'

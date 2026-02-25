@@ -1,0 +1,9 @@
+prompt:
+- A panda熊 stands on its hind legs in an enclosure at Taipei Zoo, reaching up towards
+  a hanging treat, with a painted backdrop of mountains and a pond.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T07:43:01.222267'

@@ -1,0 +1,9 @@
+prompt:
+- A man with short dark hair stands between tree trunks, observing two giraffes grazing
+  in a lush green field with scattered trees and palm fronds under a bright blue sky.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:48:38.020418'

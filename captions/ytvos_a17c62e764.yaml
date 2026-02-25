@@ -1,0 +1,9 @@
+prompt:
+- A horse-drawn carriage with passengers travels along a road near a mountainous landscape,
+  with snow-capped peaks in the background.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:26:03.250374'

@@ -1,0 +1,9 @@
+prompt:
+- A long public bus with open doors is stopped at a crosswalk in an urban area with
+  multi-story buildings and overhead power lines.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T07:54:49.699861'

@@ -1,0 +1,9 @@
+prompt:
+- A snowy roadside scene with a large semi-truck, its trailer covered in snow, and
+  a person in a high-visibility jacket working near the truck's rear.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:29:24.839439'

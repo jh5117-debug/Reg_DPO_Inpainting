@@ -1,0 +1,9 @@
+prompt:
+- Two tiger cubs stand on a concrete floor near a glass door, looking out at another
+  tiger inside a building.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:27:47.868071'

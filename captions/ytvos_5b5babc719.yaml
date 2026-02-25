@@ -1,0 +1,9 @@
+prompt:
+- A shark swims gracefully underwater, its body partially submerged in a deep blue
+  ocean, creating a serene aquatic scene.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:05:41.576128'

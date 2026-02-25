@@ -1,0 +1,9 @@
+prompt:
+- A white bus numbered 3539 is parked at a curb in a suburban area with storefronts,
+  including CVS Pharmacy and a Burger King, under a clear blue sky.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:13:20.132745'

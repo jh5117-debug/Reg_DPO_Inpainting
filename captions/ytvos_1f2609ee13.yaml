@@ -1,0 +1,9 @@
+prompt:
+- A small parakeet with blue and gray feathers perches on an arm, resting on a green
+  towel in a room with wooden cabinets and various items in the background.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T07:48:45.200045'

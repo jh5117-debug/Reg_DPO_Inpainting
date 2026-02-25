@@ -1,0 +1,9 @@
+prompt:
+- A group of motorcyclists wearing vests and helmets ride along a road near a large
+  stone embankment, with parked cars and a van visible in the background.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:47:46.490383'

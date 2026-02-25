@@ -1,0 +1,9 @@
+prompt:
+- A tennis player in action on an indoor court with a high, geometrically structured
+  ceiling, while another person stands near the net in the background.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:42:46.972647'

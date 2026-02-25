@@ -1,0 +1,9 @@
+prompt:
+- A rodeo scene with cowboys on horses and spectators in bleachers, captured at 7:23
+  PM on June 13, 2009.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T07:48:42.455151'

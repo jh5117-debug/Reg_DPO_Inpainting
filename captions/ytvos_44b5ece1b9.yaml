@@ -1,0 +1,9 @@
+prompt:
+- A green parrot perches indoors on a patterned rug, with a chair covered in a beige
+  cloth, clothes hanging nearby, and an ironing board in the background.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T07:59:04.757148'

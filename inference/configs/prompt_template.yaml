@@ -1,0 +1,42 @@
+# ============================================================
+#  DiffuEraser OR Inference Config - Prompt Template
+# ============================================================
+#
+# This file defines the text prompts used for:
+#   1. Anchor frame SD-Inpainting (when --use_anchor --anchor_method sd-inpaint)
+#   2. Main DiffuEraser network (when --use_text is enabled)
+#
+# The same prompt is shared between anchor and main network.
+# Place this file in configs/ and reference it via --prompt_yaml.
+#
+# Example usage:
+#   python run_OR.py --input_video video.mp4 --input_mask mask.mp4 \
+#     --use_anchor --anchor_method sd-inpaint \
+#     --anchor_model_path runwayml/stable-diffusion-inpainting \
+#     --prompt_yaml configs/my_scene.yaml \
+#     --save_path results
+#
+# ============================================================
+
+# --- Text Prompt ---
+# Describe the BACKGROUND scene only (no foreground objects being removed).
+# Good prompts focus on: environment, lighting, textures, colors, layout.
+# Bad prompts mention: people, animals, moving objects, the removed content.
+prompt:
+  - "a sunny park pathway with green grass and tall oak trees casting dappled shadows"
+
+# --- Negative Prompt ---
+# List of terms to avoid in generation.
+n_prompt:
+  - "blurry, flickering, distorted, artifacts, text, watermark, people, animals"
+
+# --- Prompt Metadata (auto-filled when using generate_captions.py) ---
+prompt_source: "manual"        # manual | auto_caption
+prompt_model: ""               # Model used for auto-generation (e.g., Qwen2.5-VL-7B)
+prompt_timestamp: ""           # ISO timestamp when prompt was generated
+
+# --- Main Network Text Control ---
+# CFG scale when --use_text is enabled.
+# Higher = stronger prompt adherence, may reduce temporal consistency.
+# Recommended range: 1.0 - 3.0
+text_guidance_scale: 2.0

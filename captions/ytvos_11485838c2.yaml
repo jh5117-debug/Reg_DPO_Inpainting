@@ -1,0 +1,9 @@
+prompt:
+- A group of giraffes stands on a paved area near a wooden structure, with some birds
+  scattered around, in an enclosed zoo-like setting.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T07:44:48.238447'

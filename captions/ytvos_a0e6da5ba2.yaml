@@ -1,0 +1,9 @@
+prompt:
+- A close-up of a bird's nest nestled among green pine needles, with two baby birds
+  open-mouthed, waiting for food.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:25:53.196401'

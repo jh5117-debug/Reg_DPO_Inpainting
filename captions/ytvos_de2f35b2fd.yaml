@@ -1,0 +1,9 @@
+prompt:
+- A residential street scene featuring a large red tanker truck, a man in overalls,
+  and a small crowd near a red tent, with green trees and houses in the background.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:43:34.695008'

@@ -1,0 +1,9 @@
+prompt:
+- a view from inside a train window showing another train approaching on parallel
+  tracks, with overhead electrical wires and industrial surroundings.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T07:57:17.692075'

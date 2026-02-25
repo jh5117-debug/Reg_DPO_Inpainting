@@ -1,0 +1,9 @@
+prompt:
+- Two individuals stand in a snowy zoo enclosure, smiling at the camera, with a polar
+  bear walking in the background amidst snow-covered rocks and bare trees.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:03:07.280581'

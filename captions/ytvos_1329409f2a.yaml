@@ -1,0 +1,9 @@
+prompt:
+- A large aquarium filled with numerous orange goldfish swimming near the bottom,
+  with a black filter or pump visible on the left side.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T07:45:34.694091'

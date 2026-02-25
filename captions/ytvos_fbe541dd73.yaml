@@ -1,0 +1,9 @@
+prompt:
+- A playful white kitten with blue eyes climbs onto a wooden chair, surrounded by
+  a colorful plaid blanket and a cardboard box nearby.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:53:00.278309'

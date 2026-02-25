@@ -1,0 +1,43 @@
+# === 模型权重（符号链接 + 实际文件）===
+weights/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+
+# === 大型数据集（全部是符号链接）===
+data/
+
+# === ProPainter（符号链接）===
+propainter/
+
+# === 评估工具（符号链接）===
+evaluation/
+
+# === 原始参考代码（符号链接）===
+reference/
+
+# === 推理结果 ===
+results/
+
+# === DPO 生成数据 ===
+dpo_data/
+
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+
+# === IDE ===
+.vscode/
+.idea/
+
+# === 大型 PDF ===
+docs/dpo/DiffuEraser.pdf
+
+# === OS ===
+.DS_Store
+Thumbs.db

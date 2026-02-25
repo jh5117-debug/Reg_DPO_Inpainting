@@ -1,0 +1,9 @@
+prompt:
+- A small green parakeet stands on a tiled floor near a white door, with colorful
+  toys hanging from it.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:36:22.303853'

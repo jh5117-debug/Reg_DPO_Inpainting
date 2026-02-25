@@ -1,0 +1,160 @@
+模式 1 ：OR有text
+CUDA_VISIBLE_DEVICES=3 python inference/run_OR.py \
+  --dataset davis \
+  --video_root data/DAVIS_FullRes/DAVIS/JPEGImages/Full-Resolution \
+  --mask_root data/DAVIS_FullRes/DAVIS/Annotations/Full-Resolution \
+  --save_path results/OR_text \
+  --video_length 60 \
+  --ref_stride 6 --neighbor_length 25 --subvideo_length 80 \
+  --mask_dilation_iter 8 \
+  --height 360 --width 720 \
+  --base_model_path weights/stable-diffusion-v1-5 \
+  --vae_path weights/sd-vae-ft-mse \
+  --diffueraser_path weights/diffuEraser \
+  --propainter_model_dir weights/propainter \
+  --pcm_weights_path weights/PCM_Weights \
+  --offload_models \
+  --save_comparison \
+  --use_text \
+  --unified_prompt_yaml inference/prompt_cache/all_captions_OR.yaml \
+  --text_guidance_scale 7.5
+
+
+
+模式 2：OR_baseline
+CUDA_VISIBLE_DEVICES=1 python inference/run_OR.py \
+  --dataset davis \
+  --video_root data/DAVIS_FullRes/DAVIS/JPEGImages/Full-Resolution \
+  --mask_root data/DAVIS_FullRes/DAVIS/Annotations/Full-Resolution \
+  --save_path results/OR_baseline \
+  --video_length 100 \
+  --ref_stride 3 --neighbor_length 25 --subvideo_length 80 \
+  --mask_dilation_iter 8 \
+  --height 360 --width 720 \
+  --base_model_path weights/stable-diffusion-v1-5 \
+  --vae_path weights/sd-vae-ft-mse \
+  --diffueraser_path weights/diffuEraser \
+  --propainter_model_dir weights/propainter \
+  --pcm_weights_path weights/PCM_Weights \
+  --save_comparison
+
+
+
+
+模式 3：OR_Vbench
+davis:
+CUDA_VISIBLE_DEVICES=2 \
+python inference/run_OR.py \
+  --dataset davis \
+  --video_root data/DAVIS_480p/JPEGImages/480p \
+  --mask_root data/DAVIS_480p/Annotations/480p \
+  --save_path results/OR_baseline \
+  --video_length 100 \
+  --ref_stride 3 \
+  --neighbor_length 25 \
+  --subvideo_length 80 \
+  --mask_dilation_iter 8 \
+  --height 512 \
+  --width 512 \
+  --base_model_path weights/stable-diffusion-v1-5 \
+  --vae_path weights/sd-vae-ft-mse \
+  --diffueraser_path weights/diffuEraser \
+  --propainter_model_dir weights/propainter \
+  --pcm_weights_path weights/PCM_Weights \
+  --save_comparison \
+  --eval_vbench
+
+
+ytvos:
+CUDA_VISIBLE_DEVICES=2 \
+python inference/run_OR.py \
+  --dataset ytvos \
+  --video_root data/YTBV/JPEGImages \
+  --mask_root data/YTBV/Annotations \
+  --save_path results/OR_baseline \
+  --video_length 100 \
+  --ref_stride 3 \
+  --neighbor_length 25 \
+  --subvideo_length 80 \
+  --mask_dilation_iter 8 \
+  --height 512 \
+  --width 512 \
+  --base_model_path weights/stable-diffusion-v1-5 \
+  --vae_path weights/sd-vae-ft-mse \
+  --diffueraser_path weights/diffuEraser \
+  --propainter_model_dir weights/propainter \
+  --pcm_weights_path weights/PCM_Weights \
+  --save_comparison \
+  --eval_vbench
+
+
+
+命令 1：BR + use_text
+CUDA_VISIBLE_DEVICES=2 python inference/run_BR.py \
+  --dataset davis \
+  --video_root data/davis_BR/JPEGImages_432_240/ \
+  --mask_root data/davis_BR/test_masks/ \
+  --gt_root data/davis_BR/JPEGImages_432_240/ \
+  --save_path results/BR_text_guided \
+  --compute_metrics \
+  --save_comparison \
+  --base_model_path weights/stable-diffusion-v1-5 \
+  --vae_path weights/sd-vae-ft-mse \
+  --diffueraser_path weights/diffuEraser \
+  --propainter_model_dir weights/propainter \
+  --pcm_weights_path weights/PCM_Weights \
+  --i3d_model_path weights/i3d_rgb_imagenet.pt \
+  --raft_model_path weights/propainter/raft-things.pth \
+  --ref_stride 3 --neighbor_length 25 --subvideo_length 80 \
+  --mask_dilation_iter 0 \
+  --video_length 100 \
+  --use_text \
+  --prompt_root inference/prompt_cache/all_captions_BR.yaml \
+  --text_guidance_scale 3.5
+
+
+
+命令 2：BR Baseline
+CUDA_VISIBLE_DEVICES=2 python inference/run_BR.py \
+  --dataset davis \
+  --video_root data/davis_BR/JPEGImages_432_240/ \
+  --mask_root data/davis_BR/test_masks/ \
+  --gt_root data/davis_BR/JPEGImages_432_240/ \
+  --save_path results/BR_baseline \
+  --compute_metrics \
+  --save_comparison \
+  --base_model_path weights/stable-diffusion-v1-5 \
+  --vae_path weights/sd-vae-ft-mse \
+  --diffueraser_path weights/diffuEraser \
+  --propainter_model_dir weights/propainter \
+  --pcm_weights_path weights/PCM_Weights \
+  --i3d_model_path weights/i3d_rgb_imagenet.pt \
+  --raft_model_path weights/propainter/raft-things.pth \
+  --ref_stride 3 --neighbor_length 25 --subvideo_length 80 \
+  --mask_dilation_iter 0 \
+  --video_length 100
+
+
+DPO-dataset:
+rm -rf data/dpo_data/*
+CUDA_VISIBLE_DEVICES=1 python training/dpo/generate_dpo_negatives.py \
+    --davis_root data/DAVIS_480p \
+    --ytvos_root data/YTBV \
+    --output_dir data/dpo_data \
+    --clip_length 22 \
+    --clip_stride 11 \
+    --num_candidates 4 \
+    --max_videos 100 \
+    --comparison_fps 8 \
+    --height 512 --width 512 \
+    --base_model_path weights/stable-diffusion-v1-5 \
+    --vae_path weights/sd-vae-ft-mse \
+    --diffueraser_path weights/diffuEraser \
+    --propainter_model_dir weights/propainter \
+    --pcm_weights_path weights/PCM_Weights
+
+
+
+rm -rf data/dpo_data/*
+bash training/dpo/run_dpo_dataset.sh
+tail -f data/dpo_data/run.log

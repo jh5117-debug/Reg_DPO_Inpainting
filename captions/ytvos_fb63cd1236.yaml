@@ -1,0 +1,9 @@
+prompt:
+- A person's arm reaches into a terracotta pot holding a small tree, set against a
+  backdrop of grass, weeds, and a wooden fence.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:52:50.193976'

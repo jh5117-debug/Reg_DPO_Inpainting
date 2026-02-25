@@ -1,0 +1,9 @@
+prompt:
+- Two green parrots perch inside a metal cage, one facing forward and the other turned
+  away, against a backdrop of a window and light-colored wall.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T07:58:54.461691'

@@ -1,0 +1,9 @@
+prompt:
+- A leopard gecko stands on a light wooden surface, its head slightly tilted as it
+  looks directly at the camera, with a box labeled "macre" in the background.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:26:14.968506'

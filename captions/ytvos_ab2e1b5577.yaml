@@ -1,0 +1,9 @@
+prompt:
+- three sea lions rest on a rocky outcrop, one vocalizing with its mouth open, against
+  a backdrop of dense evergreen forest.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:28:54.679232'

@@ -1,0 +1,10 @@
+prompt:
+- A person wearing a green jacket and hat is partially hidden behind a snow-covered
+  tree in a dense, snowy forest with bare branches and patches of sunlight filtering
+  through.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:46:57.039271'

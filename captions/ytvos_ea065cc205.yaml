@@ -1,0 +1,9 @@
+prompt:
+- A tiger and its cub rest on a concrete surface near lush greenery and a brick wall,
+  bathed in sunlight.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:47:28.855105'

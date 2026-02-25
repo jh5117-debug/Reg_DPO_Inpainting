@@ -1,0 +1,9 @@
+prompt:
+- A flooded residential area with two individuals and a dog wading through water,
+  houses and greenery in the background, under overcast skies.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:00:28.691042'

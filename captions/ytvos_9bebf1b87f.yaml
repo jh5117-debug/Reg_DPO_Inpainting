@@ -1,0 +1,9 @@
+prompt:
+- A large bird, possibly an eagle, perches on a nest made of twigs and branches in
+  a forested area with green foliage and fallen logs in the background.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:24:41.785864'

@@ -1,0 +1,9 @@
+prompt:
+- Two individuals wearing helmets and life jackets are rafting on a river, with one
+  making a peace sign against a backdrop of hills and cloudy skies.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:50:59.845934'

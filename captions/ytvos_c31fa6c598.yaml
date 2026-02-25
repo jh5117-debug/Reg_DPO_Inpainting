@@ -1,0 +1,9 @@
+prompt:
+- A panda熊 is eating bamboo leaves in an enclosure with logs and rocks, set against
+  a green backdrop.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:36:10.881692'

@@ -1,0 +1,1175 @@
+# Auto-generated unified YAML by generate_captions.py
+# Generated at: 2026-02-22T07:39:06.228360
+# Total videos: 90
+
+bear:
+  prompt:
+  - A brown bear stands in a rocky enclosure with a stone wall, surrounded by scattered
+    rocks and mulch, under natural daylight.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:37:37.035826'
+  prompt_frame_idx: 41
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/bear
+bike-packing:
+  prompt:
+  - A man works on a stationary bike indoors, surrounded by a cozy living room with
+    wooden floors, furniture, and brick walls.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:37:38.052122'
+  prompt_frame_idx: 34
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/bike-packing
+blackswan:
+  prompt:
+  - A black swan with a red beak swims gracefully in murky green water, bordered by
+    lush green foliage and a concrete embankment.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:37:39.135061'
+  prompt_frame_idx: 25
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/blackswan
+bmx-bumps:
+  prompt:
+  - a cyclist speeds through a sandy dirt track bordered by banners and a fence, with
+    greenery in the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:37:40.039473'
+  prompt_frame_idx: 45
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/bmx-bumps
+bmx-trees:
+  prompt:
+  - A cyclist rides past vibrant graffiti on a wall, with greenery and a tree in the
+    foreground, creating a dynamic urban-rural blend.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:37:41.119687'
+  prompt_frame_idx: 40
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/bmx-trees
+boat:
+  prompt:
+  - A white fishing boat speeds across calm blue waters near a rocky shoreline, with
+    sparse vegetation and distant white houses under a clear sky.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:37:42.159448'
+  prompt_frame_idx: 37
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/boat
+boxing-fisheye:
+  prompt:
+  - an outdoor boxing match takes place at dusk, with spectators watching from behind
+    ropes, surrounded by trees and buildings.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:37:43.041728'
+  prompt_frame_idx: 43
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/boxing-fisheye
+breakdance:
+  prompt:
+  - A group of people watches a breakdancer performing on a wooden platform in front
+    of an ornate building with large windows and decorative stonework.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:37:44.140068'
+  prompt_frame_idx: 42
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/breakdance
+breakdance-flare:
+  prompt:
+  - A man performs a dynamic dance move on a paved courtyard, surrounded by stone
+    walls, flower boxes, and a metal gate.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:37:45.112923'
+  prompt_frame_idx: 35
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/breakdance-flare
+bus:
+  prompt:
+  - a blue and white bus driving down a road lined with trees and utility poles, with
+    a pedestrian crossing sign visible in the foreground.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:37:46.129707'
+  prompt_frame_idx: 40
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/bus
+camel:
+  prompt:
+  - two camels in a fenced enclosure with greenery and a thatched roof structure in
+    the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:37:46.985243'
+  prompt_frame_idx: 45
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/camel
+car-roundabout:
+  prompt:
+  - A gray Mini Countryman car is parked on a street near a historic building with
+    ornate architecture, greenery, and a few pedestrians in the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:37:48.110862'
+  prompt_frame_idx: 37
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/car-roundabout
+car-shadow:
+  prompt:
+  - A silver car drives through an intersection in a modern urban area with white
+    buildings, crosswalks, and traffic lights.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:37:49.056620'
+  prompt_frame_idx: 20
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/car-shadow
+car-turn:
+  prompt:
+  - A silver Suzuki Jimny drives along a paved road bordered by green grass and trees,
+    with a mountainous backdrop under a partly cloudy sky.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:37:50.095801'
+  prompt_frame_idx: 40
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/car-turn
+cat-girl:
+  prompt:
+  - A child holds a small tabby kitten on a wooden bench amidst green foliage and
+    a red structure in the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:37:51.025977'
+  prompt_frame_idx: 44
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/cat-girl
+classic-car:
+  prompt:
+  - A vintage race car with number 23 on its side is being driven by a man in a blue
+    shirt, while another person wearing a fur-lined hat sits behind him,
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:37:52.439277'
+  prompt_frame_idx: 31
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/classic-car
+color-run:
+  prompt:
+  - A close-up view of hands holding a colorful "Color Run" packet, with a blurred
+    background showing a person and outdoor scenery.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:37:53.428663'
+  prompt_frame_idx: 42
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/color-run
+cows:
+  prompt:
+  - A brown and white cow walks along a dirt path near a grassy field, bordered by
+    a simple fence and a water trough.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:37:54.439567'
+  prompt_frame_idx: 52
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/cows
+crossing:
+  prompt:
+  - A pedestrian crossing at an intersection with a zebra crossing, a white van, and
+    a building with a sign in Japanese in the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:37:55.502622'
+  prompt_frame_idx: 26
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/crossing
+dance-jump:
+  prompt:
+  - A young girl in a pink tutu dances near a fountain with lion statues, surrounded
+    by spectators and colorful balloons, with tall grass in the foreground.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:37:56.712673'
+  prompt_frame_idx: 30
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/dance-jump
+dance-twirl:
+  prompt:
+  - A dancer in a blue top and feathered skirt performs barefoot on a paved area,
+    surrounded by an audience seated on hay bales and chairs, with greenery and a
+    building in the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:37:58.079579'
+  prompt_frame_idx: 45
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/dance-twirl
+dancing:
+  prompt:
+  - a lively nighttime street festival with people dancing and clapping, illuminated
+    by streetlights and colorful banners, surrounded by buildings and trees.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:37:59.073663'
+  prompt_frame_idx: 31
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/dancing
+disc-jockey:
+  prompt:
+  - A man with tattoos raises his arms in a dimly lit room with warm yellow lighting,
+    casting shadows on the walls.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:00.090450'
+  prompt_frame_idx: 38
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/disc-jockey
+dog:
+  prompt:
+  - A golden retriever dog walks on a grassy area with scattered leaves, wearing a
+    harness, under natural daylight.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:01.018079'
+  prompt_frame_idx: 30
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/dog
+dog-agility:
+  prompt:
+  - A Border Collie dog runs through an agility course with red and green poles on
+    a grassy field, with trees and buildings in the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:02.139463'
+  prompt_frame_idx: 12
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/dog-agility
+dog-gooses:
+  prompt:
+  - A black-and-white Border Collie herds ducks across a grassy field near a wooden
+    fence and parked vehicles.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:03.177701'
+  prompt_frame_idx: 43
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/dog-gooses
+dogs-jump:
+  prompt:
+  - A woman stands in an open field with two dogs, one jumping mid-air while the other
+    sniffs the ground, under a cloudy sky.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:04.232209'
+  prompt_frame_idx: 33
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/dogs-jump
+dogs-scale:
+  prompt:
+  - A small black and tan dachshund sits on a kitchen scale while another dog lies
+    nearby, with a person's hand reaching towards them.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:05.318954'
+  prompt_frame_idx: 41
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/dogs-scale
+drift-chicane:
+  prompt:
+  - A car drifts on a racetrack, emitting smoke, with a large Monster Energy banner
+    and a scoreboard in the background at an outdoor racing event.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:06.444226'
+  prompt_frame_idx: 26
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/drift-chicane
+drift-straight:
+  prompt:
+  - A red racing car speeds along a track bordered by tires and barriers, with spectators
+    in the background under bright daylight.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:07.358997'
+  prompt_frame_idx: 25
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/drift-straight
+drift-turn:
+  prompt:
+  - A drift car performs a controlled slide on a track, emitting smoke, with sponsor
+    banners in the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:08.226247'
+  prompt_frame_idx: 32
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/drift-turn
+drone:
+  prompt:
+  - A person stands indoors on a blue carpeted floor, wearing brown shoes and gray
+    pants, with a small drone on the ground nearby.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:09.239201'
+  prompt_frame_idx: 45
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/drone
+elephant:
+  prompt:
+  - an elephant walks through a dusty enclosure with rocks and trees, mist rising
+    from its body, under a clear blue sky.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:10.183112'
+  prompt_frame_idx: 40
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/elephant
+flamingo:
+  prompt:
+  - two flamingos wading in shallow water near a tree stump, with reflections visible
+    in the calm surface.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:11.043250'
+  prompt_frame_idx: 40
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/flamingo
+goat:
+  prompt:
+  - A goat stands on rocky terrain in a rugged, arid landscape with sparse vegetation
+    and distant hills.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:11.876944'
+  prompt_frame_idx: 45
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/goat
+gold-fish:
+  prompt:
+  - A vibrant aquarium scene featuring several orange goldfish swimming near aquatic
+    plants and rocks, illuminated by blue lighting.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:12.735695'
+  prompt_frame_idx: 39
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/gold-fish
+hike:
+  prompt:
+  - A hiker walks along a rocky trail in a mountainous area, surrounded by rugged
+    terrain and sparse vegetation under bright sunlight.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:13.701424'
+  prompt_frame_idx: 40
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/hike
+hockey:
+  prompt:
+  - A man rollerblades near a small goal on an outdoor court, with a yellow ball nearby,
+    surrounded by green fencing and trees in the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:14.803270'
+  prompt_frame_idx: 37
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/hockey
+horsejump-high:
+  prompt:
+  - A rider and horse jump over a colorful obstacle in an outdoor equestrian arena
+    under a bright blue sky.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:15.688166'
+  prompt_frame_idx: 25
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/horsejump-high
+horsejump-low:
+  prompt:
+  - A rider on a white horse jumps over a blue and white obstacle in an outdoor equestrian
+    arena with green hedges and trees in the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:16.784724'
+  prompt_frame_idx: 30
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/horsejump-low
+india:
+  prompt:
+  - a bustling outdoor market with people walking, vendors, and greenery in the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:17.535338'
+  prompt_frame_idx: 40
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/india
+judo:
+  prompt:
+  - A judo training session takes place indoors on a green mat, with participants
+    in white uniforms practicing techniques, while spectators observe from the sidelines.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:18.579779'
+  prompt_frame_idx: 17
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/judo
+kid-football:
+  prompt:
+  - A boy wearing an orange cap and jersey stands outdoors near a soccer ball, with
+    trees and power lines in the background under a hazy sky.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:19.653251'
+  prompt_frame_idx: 34
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/kid-football
+kite-surf:
+  prompt:
+  - A person kiteboarding on clear turquoise waters, creating splashes, with a distant
+    shoreline and houses under a bright sky.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:20.590645'
+  prompt_frame_idx: 25
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/kite-surf
+kite-walk:
+  prompt:
+  - A person wearing a helmet and wetsuit stands on a sandy beach, preparing to kite
+    surf, with a kiteboard and harness attached, overlooking calm turquoise waters.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:21.775796'
+  prompt_frame_idx: 40
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/kite-walk
+koala:
+  prompt:
+  - A koala rests on a tree trunk amidst lush green foliage, its paws gripping the
+    bark.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:22.607350'
+  prompt_frame_idx: 50
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/koala
+lab-coat:
+  prompt:
+  - three women in white lab coats stand on a grassy field, wearing safety goggles,
+    with a chain-link fence and trees in the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:23.681917'
+  prompt_frame_idx: 23
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/lab-coat
+lady-running:
+  prompt:
+  - A lively gathering of older adults in a community center, with one person walking
+    away from the camera while others sit at tables, engaging in conversation and
+    activities.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:24.804864'
+  prompt_frame_idx: 32
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/lady-running
+libby:
+  prompt:
+  - A small dog walks through a grassy yard enclosed by a chain-link fence, with a
+    tree and fruit hanging nearby.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:25.744601'
+  prompt_frame_idx: 24
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/libby
+lindy-hop:
+  prompt:
+  - A lively dance class takes place in a spacious room with wooden floors, red curtains,
+    and a white door, featuring participants in various casual outfits engaging in
+    social dancing.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:26.934771'
+  prompt_frame_idx: 36
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/lindy-hop
+loading:
+  prompt:
+  - A man carries a Samsung Smart TV box in a store aisle, while another person pushes
+    a cart filled with other TV boxes.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:27.899190'
+  prompt_frame_idx: 25
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/loading
+longboard:
+  prompt:
+  - A man skateboards down a paved path while another person rides a bicycle ahead,
+    surrounded by lush greenery and a natural setting.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:28.894763'
+  prompt_frame_idx: 26
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/longboard
+lucia:
+  prompt:
+  - A woman walks along a paved path in a park, surrounded by lush greenery and trees,
+    with a wooden bench nearby.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:29.860773'
+  prompt_frame_idx: 35
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/lucia
+mallard-fly:
+  prompt:
+  - A duck walks across a grassy bank near a rocky riverbank with flowing water in
+    the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:30.695278'
+  prompt_frame_idx: 35
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/mallard-fly
+mallard-water:
+  prompt:
+  - A duck swims gracefully in rippling green water, creating concentric circles as
+    it moves.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:31.471914'
+  prompt_frame_idx: 40
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/mallard-water
+mbike-trick:
+  prompt:
+  - A motorcyclist performs a burnout on an empty road, creating a cloud of smoke,
+    with tire marks on the asphalt and a bridge in the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:32.621164'
+  prompt_frame_idx: 39
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/mbike-trick
+miami-surf:
+  prompt:
+  - two surfers riding waves in the ocean under a bright, clear sky.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:33.317879'
+  prompt_frame_idx: 35
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/miami-surf
+motocross-bumps:
+  prompt:
+  - A motocross rider in protective gear navigates a dirt track bordered by red-and-white
+    tape, with dense green foliage in the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:34.360712'
+  prompt_frame_idx: 30
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/motocross-bumps
+motocross-jump:
+  prompt:
+  - A motocross rider in mid-air on a green dirt bike, with blurred background suggesting
+    speed and motion.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:35.247957'
+  prompt_frame_idx: 20
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/motocross-jump
+motorbike:
+  prompt:
+  - a couple on a motorcycle drives past a large planter with yellow flowers on an
+    empty road with a forested mountain backdrop.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:36.213486'
+  prompt_frame_idx: 21
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/motorbike
+night-race:
+  prompt:
+  - Two futuristic cars race on a track inside a dimly lit industrial building with
+    metal beams overhead.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:37.026946'
+  prompt_frame_idx: 23
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/night-race
+paragliding:
+  prompt:
+  - A paraglider soars over a lush green valley with scattered houses and a church
+    in the background, framed by dense forested hills.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:38.075910'
+  prompt_frame_idx: 35
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/paragliding
+paragliding-launch:
+  prompt:
+  - A paraglider descends over a grassy hillside, with a scenic view of rolling hills,
+    forests, and scattered towns in the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:39.192238'
+  prompt_frame_idx: 40
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/paragliding-launch
+parkour:
+  prompt:
+  - A man runs on a concrete path with metal railings, surrounded by modern buildings
+    and greenery under a bright blue sky.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:40.167264'
+  prompt_frame_idx: 50
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/parkour
+pigs:
+  prompt:
+  - A mother pig and two piglets forage together on a dirt ground in a rural setting.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:40.989040'
+  prompt_frame_idx: 39
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/pigs
+planes-water:
+  prompt:
+  - A large passenger jet taxis on a wet runway at dusk, with Schiphol Amsterdam Airport
+    branding visible in the corner.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:41.926648'
+  prompt_frame_idx: 19
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/planes-water
+rallye:
+  prompt:
+  - A rally car speeds along a gravel road, kicking up dust, with spectators watching
+    from a grassy hillside under a clear blue sky.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:42.981774'
+  prompt_frame_idx: 25
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/rallye
+rhino:
+  prompt:
+  - A rhinoceros stands near a tree in a zoo enclosure with rocks, dirt, and artificial
+    rock formations in the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:43.975567'
+  prompt_frame_idx: 45
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/rhino
+rollerblade:
+  prompt:
+  - A young woman jumps mid-air in front of a colorful graffiti wall with large windows
+    and brick surroundings.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:44.806868'
+  prompt_frame_idx: 17
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/rollerblade
+schoolgirls:
+  prompt:
+  - three children in school uniforms walk along a dirt path near a concrete wall
+    with potted plants and a small shrine, surrounded by lush greenery.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:45.890738'
+  prompt_frame_idx: 40
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/schoolgirls
+scooter-black:
+  prompt:
+  - A man in a suit rides a black motorcycle down a tree-lined street, with parked
+    motorcycles and cars in the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:46.827841'
+  prompt_frame_idx: 21
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/scooter-black
+scooter-board:
+  prompt:
+  - A vibrant convention hall with colorful booths, attendees, and illuminated displays,
+    featuring a prominent purple-lit structure in the foreground.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:47.789224'
+  prompt_frame_idx: 45
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/scooter-board
+scooter-gray:
+  prompt:
+  - A man wearing a helmet rides a silver scooter across a crosswalk beneath an overpass,
+    with greenery and urban architecture in the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:48.838879'
+  prompt_frame_idx: 37
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/scooter-gray
+sheep:
+  prompt:
+  - A pastoral scene featuring sheep and lambs in a grassy field bordered by a wire
+    fence, with a tree and sparse branches in the foreground.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:49.923479'
+  prompt_frame_idx: 34
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/sheep
+shooting:
+  prompt:
+  - A man in tactical gear climbs a rope inside a dimly lit, rustic building with
+    wooden beams and metal pipes.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:50.947808'
+  prompt_frame_idx: 20
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/shooting
+skate-park:
+  prompt:
+  - a sunny day at a skatepark with concrete ramps, people skating and watching, and
+    a beach in the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:51.881641'
+  prompt_frame_idx: 40
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/skate-park
+snowboard:
+  prompt:
+  - A snowboarder in black gear descends a snowy slope, leaving tracks in the fresh
+    powder, under bright sunlight.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:52.818009'
+  prompt_frame_idx: 33
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/snowboard
+soapbox:
+  prompt:
+  - Two individuals race homemade wooden cars down a street lined with spectators
+    and residential buildings.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:53.541362'
+  prompt_frame_idx: 49
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/soapbox
+soccerball:
+  prompt:
+  - A soccer ball rests against a tree trunk in a grassy yard enclosed by a wire fence,
+    with greenery and a building visible in the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:54.637068'
+  prompt_frame_idx: 24
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/soccerball
+stroller:
+  prompt:
+  - A woman walks along a cobblestone street pushing a stroller with a child inside,
+    passing by a shop window displaying flowers and decorative items.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:55.708191'
+  prompt_frame_idx: 45
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/stroller
+stunt:
+  prompt:
+  - A skateboarder performs a trick on a graffiti-covered ramp in an urban park setting,
+    with modern buildings and greenery in the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:56.726161'
+  prompt_frame_idx: 35
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/stunt
+surf:
+  prompt:
+  - A windsurfer glides across calm turquoise waters under a vibrant green sail, with
+    hazy mountains in the background and a clear sky above.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:57.798442'
+  prompt_frame_idx: 27
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/surf
+swing:
+  prompt:
+  - A woman swings on a wooden swing set in a park with dry grass, surrounded by green
+    bushes and a paved walkway.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:58.767403'
+  prompt_frame_idx: 30
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/swing
+tennis:
+  prompt:
+  - A man in a white shirt and black shorts stretches on a clay tennis court, preparing
+    to hit a ball, with a blue banner in the background displaying text and logos.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:38:59.972738'
+  prompt_frame_idx: 35
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/tennis
+tractor-sand:
+  prompt:
+  - an equestrian arena with a person operating a riding mower, wooden jumps, and
+    a backdrop of trees and a building.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:39:00.940310'
+  prompt_frame_idx: 38
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/tractor-sand
+train:
+  prompt:
+  - A detailed model train set with a blue locomotive pulling red and gray passenger
+    cars, surrounded by miniature figures, trees, and curved tracks on a grassy base.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:39:02.141290'
+  prompt_frame_idx: 40
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/train
+tuk-tuk:
+  prompt:
+  - three young people sitting together on a moving boat, enjoying the view of a tree-lined
+    riverbank with a bus stop and parked cars in the background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:39:03.235987'
+  prompt_frame_idx: 29
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/tuk-tuk
+upside-down:
+  prompt:
+  - Two individuals are enjoying a thrilling ride on a colorful amusement park attraction
+    under a bright, partly cloudy sky.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:39:04.095260'
+  prompt_frame_idx: 32
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/upside-down
+varanus-cage:
+  prompt:
+  - A lizard perches on a curved branch inside a terrarium with wooden walls, rope
+    structures, and overhead lights.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:39:05.024609'
+  prompt_frame_idx: 33
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/varanus-cage
+walking:
+  prompt:
+  - A man with a beard and short hair, wearing a blue blazer and carrying a backpack,
+    stands on a busy urban street with pedestrians and historic architecture in the
+    background.
+  n_prompt:
+  - blurry, flickering, distorted, artifacts, text, watermark, low quality, person,
+    people, human
+  text_guidance_scale: 2.0
+  prompt_source: auto_masked
+  prompt_model: Qwen2.5-VL-7B-Instruct
+  prompt_timestamp: '2026-02-22T07:39:06.228173'
+  prompt_frame_idx: 36
+  source_video: /home/hj/Train_Diffueraser/dataset/DAVIS/JPEGImages/480p/walking

@@ -1,0 +1,76 @@
+我有两个代码逻辑一个用来test做评测推理 做的是(BR)Background Restoration 把缺失区域的背景连贯地补回来。 
+还有一个是用来做Object Removal（OR） 把不想要的物体抹掉，让它像从来没出现过--可视化。
+
+1.
+我现在会给你下述的几个训练的代码 diffueraser分为两个阶段的训练,并且有两个训练集/home/hj/Train_Diffueraser/dataset/DAVIS和 /home/hj/Train_Diffueraser/dataset/YTBV我现在想继续用这两个数据集进行finetune,请你帮我修改代码,让它能够在两个数据集上
+进行finetune,整个逻辑我写了一个readme.md,但是我不知道对不对,我也不知道有没有对齐原代码帮我检查,然后给出所有代码
+
+
+
+我现在发现一个问题使用@run_OR.py 该代码
+CUDA_VISIBLE_DEVICES=3 python run_OR.py \
+  --dataset davis \
+  --video_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/JPEGImages/Full-Resolution \
+  --mask_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/Annotations/Full-Resolution \
+  --save_path results_OR_refine \
+  --video_length 60 \
+  --ref_stride 6 --neighbor_length 25 --subvideo_length 80 \
+  --mask_dilation_iter 4 \
+  --height 360 --width 720 \
+  --base_model_path /home/hj/DiffuEraser_new/weights/stable-diffusion-v1-5 \
+  --vae_path /home/hj/DiffuEraser_new/weights/sd-vae-ft-mse \
+  --diffueraser_path /home/hj/DiffuEraser_new/weights/diffuEraser \
+  --propainter_model_dir /home/hj/DiffuEraser_new/weights/propainter \
+  --pcm_weights_path /home/hj/DiffuEraser_new/weights/PCM_Weights \
+  --no_metrics \
+  --use_anchor --anchor_frame_idx 0 \
+  --anchor_method refine \
+  --anchor_strength 0.2 \
+  --offload_models \
+  --save_comparison
+跑出来的结果propainter可视化要比diffueraser的结果差很多,也就是diffueraser在OR都效果用人眼观察来来说要好很多,但是在运行@run_BR.py 测metric的时候
+CUDA_VISIBLE_DEVICES=0 python run_BR.py \
+  --dataset davis \
+  --video_root /home/hj/DiffuEraser_new/dataset/davis/JPEGImages_432_240/ \
+  --mask_root /home/hj/DiffuEraser_new/dataset/davis/test_masks/ \
+  --gt_root /home/hj/DiffuEraser_new/dataset/davis/JPEGImages_432_240/ \
+  --save_path results_BR_refine_anchor \
+  --compute_metrics \
+  --save_comparison \
+  --base_model_path /home/hj/DiffuEraser_new/weights/stable-diffusion-v1-5 \
+  --vae_path /home/hj/DiffuEraser_new/weights/sd-vae-ft-mse \
+  --diffueraser_path /home/hj/DiffuEraser_new/weights/diffuEraser \
+  --propainter_model_dir /home/hj/DiffuEraser_new/weights/propainter \
+  --pcm_weights_path /home/hj/DiffuEraser_new/weights/PCM_Weights \
+  --i3d_model_path /home/hj/DiffuEraser_new/weights/i3d_rgb_imagenet.pt \
+  --raft_model_path /home/hj/DiffuEraser_new/weights/propainter/raft-things.pth \
+  --ref_stride 3 --neighbor_length 25 --subvideo_length 80 \
+  --mask_dilation_iter 4 \
+  --use_anchor --anchor_frame_idx 0 \
+  --anchor_method refine \
+  --anchor_strength 0.2 \
+  --offload_models
+
+  Metrics for train:
+  Running Average (50 videos):
+Method       |       PSNR |       SSIM |      LPIPS |      Ewarp |         AS |         IS |       VFID
+----------------------------------------------------------------------------------------------------
+ProPainter   |    34.6816 |     0.9776 |     0.0159 |     7.4755 |     5.1054 |     1.2200 |     0.0861
+DiffuEraser  |    30.6452 |     0.9588 |     0.0197 |     8.7511 |     5.1438 |     1.2417 |     0.1217
+[Progress] 50/50 videos completed (100%)
+
+============================================================
+Final Dataset VFID
+============================================================
+ProPainter:  0.086056
+DiffuEraser: 0.121671
+propainter要比diffueraser好很多,
+1.我觉得 1.davis现在的test_mask是最早出现在E2FGVI(CVPR 2022)这类光流Video inpainting的模型中,不是生成式video inpainting的模型中,所以
+本身就不是为video inpainting所建立,在生成式video inpainting没有产出以前是对于光流预测型模型的专用
+2.测量metric这些由很多比如 PSNR SSIM LPIPS Ewarp AS IS VFID,这些metric 很多都是测量的是和GT之间的关系天然比不过光流传播真实像素的模型
+3.这个(BR)Background Restoration 把缺失区域的背景连贯地补回来。 mask是完全静止的是不是本身难度就比OR要高很多,因为如果相机运动幅度小,后面的内容根本出不来,
+或者对于diffueraser这列生成式video inpainting来说BR的效果就是很差,没有光流传播类型的propainter等模型要好(我看了很多两者产出的视频对比在OR方面本身diffueraser要比propainter好的多,但是在BR方面两者都很差,但是diffueraser要更加差)
+4.现在我是直接拿的diffueraser的官方权重进行推理的,但是官方训练的时候没有使用Youtubevos和davis官方使用的是 Panda-70M, 但是propainter官方用了Youtubevos进行训练
+针对上述的内
+
+对于上述是我的想法,可能还有别的原因,你可以告诉我但是必须要有证据有什么解决方式

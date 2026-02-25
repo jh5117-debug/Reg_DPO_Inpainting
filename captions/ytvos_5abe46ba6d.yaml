@@ -1,0 +1,9 @@
+prompt:
+- A maroon train numbered 8412 travels along tracks near a yellow construction vehicle,
+  with residential buildings and overhead power lines in the background.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:05:28.237837'

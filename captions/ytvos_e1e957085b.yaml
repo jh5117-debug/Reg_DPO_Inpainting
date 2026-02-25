@@ -1,0 +1,9 @@
+prompt:
+- A man stands beside a large bonsai tree on a dark stand, gesturing towards it, while
+  another person observes in the background.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:44:44.371957'

@@ -1,0 +1,90 @@
+================================================================
+          DiffuEraser Finetune 合作者操作指南 (一键部署版)
+================================================================
+
+二、合作者这边：下载与还原
+
+2.1 环境下载
+----------------------------------------------------------------
+首先确保安装了 HuggingFace 工具并登录：
+
+pip install -U huggingface_hub
+huggingface-cli login
+# (按提示输入 Token)
+
+2.2 下载所有文件
+----------------------------------------------------------------
+建议在 Home 目录下创建一个目录，例如 `DiffuEraser_finetune`：
+
+mkdir -p ~/DiffuEraser_finetune
+cd ~/DiffuEraser_finetune
+
+# 1. 下载代码、数据集、脚本 (Code Repo)
+huggingface-cli download JiaHuang01/DiffuEraser-finetune-code \
+    --repo-type dataset \
+    --local-dir ./
+
+# 2. 下载权重文件 (Weights Repo)
+# 注意：这会自动将权重下载到 weights/ 子目录下
+mkdir -p weights
+huggingface-cli download JiaHuang01/DiffuEraser-finetune-weights \
+    --repo-type dataset \
+    --local-dir weights/
+
+2.3 🚀 一键还原项目结构
+----------------------------------------------------------------
+下载完成后，你会看到几个压缩包 (code_base.tar.gz, DAVIS.tar 等)。
+直接运行我提供的一键还原脚本：
+
+cd ~/DiffuEraser_finetune
+bash setup_project.sh
+
+当看到 "🎉 Setup Complete!" 时，说明代码、数据集、权重都已经自动解压并归位。
+
+2.4 安装 Python 依赖
+----------------------------------------------------------------
+解压后，项目根目录下会有 `requirements.txt` 和 `environment.yml`。
+
+推荐使用 Conda 创建新环境：
+
+conda create -n diffueraser python=3.10 -y
+conda activate diffueraser
+
+# 安装核心依赖 (推荐)
+# conda env create -f environment.yml
+
+2.5 配置 Accelerate
+----------------------------------------------------------------
+配置多卡训练环境：
+
+accelerate config
+
+----------------------------------------------------------------
+三、合作者这边：运行训练
+----------------------------------------------------------------
+
+3.1 修改脚本路径 (一键替换)
+----------------------------------------------------------------
+由于脚本里的路径是原作者的路径，需要替换成你的路径。
+复制以下命令并在终端运行即可：
+
+cd ~/DiffuEraser_finetune
+
+PROJECT_DIR=$(pwd)
+WEIGHTS_DIR="${PROJECT_DIR}/weights"
+
+for f in finetune_stage1.sh finetune_stage2.sh run_finetune_all.sbatch save_checkpoint_stage1.py save_checkpoint_stage2.py; do
+    sed -i "s|/home/hj/Train_Diffueraser|${PROJECT_DIR}|g" $f
+    sed -i "s|/home/hj/DiffuEraser_new/weights|${WEIGHTS_DIR}|g" $f
+    echo "Fixed path in $f"
+done
+
+3.2 开始训练
+----------------------------------------------------------------
+推荐使用 SLURM 提交作业：
+
+mkdir -p logs converted_weights
+sbatch run_finetune_all.sbatch
+
+
+

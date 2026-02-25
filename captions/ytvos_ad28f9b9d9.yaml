@@ -1,0 +1,9 @@
+prompt:
+- A dimly lit room with three individuals, one wearing an orange cap, standing near
+  a wooden cabinet with clothes hanging on it, and a metal cart nearby.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:29:26.297893'

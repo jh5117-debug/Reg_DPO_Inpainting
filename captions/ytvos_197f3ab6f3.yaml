@@ -1,0 +1,9 @@
+prompt:
+- A playful panda hangs upside down from a tree branch in a zoo enclosure, with a
+  blue building and ventilation grates in the background.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T07:47:15.030846'

@@ -1,0 +1,9 @@
+prompt:
+- A television screen displays a live cycling race with two cyclists in motion, wearing
+  helmets and jerseys, on a road with spectators and a car in the background.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T07:44:40.900544'

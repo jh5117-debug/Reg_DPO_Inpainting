@@ -1,0 +1,9 @@
+prompt:
+- Two colorful parrots, one blue and yellow, the other red and green, perch on a railing
+  in front of a building with orange and white walls and metal grates.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:19:21.971249'

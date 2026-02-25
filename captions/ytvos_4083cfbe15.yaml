@@ -1,0 +1,9 @@
+prompt:
+- A man skateboards down a quiet suburban road while another person watches from the
+  side, surrounded by lush greenery and overcast skies.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T07:58:14.594622'

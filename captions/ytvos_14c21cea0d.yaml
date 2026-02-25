@@ -1,0 +1,9 @@
+prompt:
+- A close-up of a monkey lying on its back on a concrete surface, with its legs raised
+  and a metal pole partially visible on the right.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T07:45:55.645655'

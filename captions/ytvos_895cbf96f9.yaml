@@ -1,0 +1,9 @@
+prompt:
+- A pod of dolphins swims underwater near the surface, with sunlight filtering through
+  the water creating a serene and natural ambiance.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:18:55.673526'

@@ -1,0 +1,9 @@
+prompt:
+- A man sits by a calm lakeside feeding ducks, with reeds and rocks in the water behind
+  him.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:24:10.113381'

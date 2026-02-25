@@ -1,0 +1,9 @@
+prompt:
+- A tiger walks through a grassy enclosure with trees and a red ball in the foreground,
+  enclosed by a white rope barrier.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:35:27.862935'

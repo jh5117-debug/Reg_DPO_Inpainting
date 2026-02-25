@@ -1,0 +1,9 @@
+prompt:
+- A man in a white shirt holds a black panther on a kitchen countertop, surrounded
+  by white cabinets and various kitchen items.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:21:33.076089'

@@ -1,0 +1,1150 @@
+# DiffuEraser OR 场景：Text-Guided Auto-Refine Pipeline
+
+## 完整系统设计方案
+
+---
+
+## 1. 总体架构
+
+### 1.1 设计目标
+
+在 OR（Object Removal）场景中，实现 **一条命令** 完成以下全流程：
+
+1. **Phase 1**：无 anchor、无 text 条件下跑粗修复 → 输出 `diffueraser.mp4`
+2. **Phase 2**：从粗修复视频中取帧 → 用 VLM 生成场景描述 caption → 写入 YAML
+3. **Phase 3**：读取 YAML prompt，开启 anchor + 可选 text 条件 → 精修复 → 输出最终结果
+
+**关键约束**：Phase 2 的 captioning 模型（如 Qwen2.5-VL）需要 `transformers>=4.45`，与 DiffuEraser 的环境不兼容，因此 `generate_captions.py` 必须在独立 conda 环境中运行。自动化通过 `subprocess` + `conda run` 实现跨环境调用。
+
+### 1.2 文件新增 / 修改总览
+
+| 文件 | 类型 | 说明 |
+|------|------|------|
+| `run_OR_auto.py` | **新增** | 编排器（orchestrator），串联三个阶段，调度 subprocess |
+| `generate_captions.py` | **新增** | 独立 captioning 脚本，运行于独立 conda 环境 |
+| `run_OR.py` | **修改** | 新增 `--use_text`, `--prompt_yaml`, `--text_guidance_scale` 等参数 |
+| `diffueraser_OR.py` | **修改** | `DiffuEraser.forward()` 签名新增 `prompt`, `n_prompt` 参数 |
+| `anchor_inpainter.py` | **修改** | `SDInpaintAnchorInpainter.inpaint()` 签名新增 `prompt`, `n_prompt` 参数 |
+
+**不触碰原有逻辑**：所有修改均为增量添加参数 + 条件分支。mask 膨胀、GT 覆盖、组合、pre-inference、anchor injection 等全部原始逻辑不变。
+
+### 1.3 架构图
+
+```
+用户一条命令
+│
+▼
+run_OR_auto.py  (编排器, 轻量, 无模型依赖)
+│
+├── Phase 1: subprocess → python run_OR.py (anchor OFF, text OFF)
+│     └── 输出: {output_dir}/phase1/{video_name}/diffueraser.mp4
+│
+├── Phase 2: subprocess → conda run -n {caption_env} python generate_captions.py
+│     ├── 读取 Phase 1 输出的 diffueraser.mp4
+│     ├── 提取中间帧, 用 mask 遮盖
+│     ├── VLM 生成 caption
+│     └── 输出: {prompt_cache_dir}/{video_name}.yaml
+│
+└── Phase 3: subprocess → python run_OR.py (anchor ON, --prompt_yaml=...)
+      ├── 读取 YAML 中的 prompt
+      ├── Anchor 使用 prompt 做 SD inpainting
+      ├── 主网络可选 text conditioning (--use_text)
+      └── 输出: {output_dir}/final/{video_name}/diffueraser.mp4
+```
+
+---
+
+## 2. 各文件详细设计
+
+---
+
+### 2.1 `run_OR_auto.py` — 编排器
+
+#### 2.1.1 职责
+
+- 解析用户参数，派发给三个阶段
+- 用 `subprocess.run()` 调用各阶段脚本，实现跨进程 / 跨环境隔离
+- 管理中间产物路径、断点续跑、错误处理
+
+#### 2.1.2 命令行参数
+
+```
+# ===== 输入 / 输出 =====
+--input_video         单视频模式的输入视频路径
+--input_mask          单视频模式的 mask 路径
+--dataset             批量模式数据集 (davis / youtube-vos / custom)
+--video_root          批量模式视频根目录
+--mask_root           批量模式 mask 根目录
+--output_dir          最终输出目录（内含 phase1/ 和 final/ 子目录）
+
+# ===== 环境配置 =====
+--caption_env         captioning 脚本使用的 conda 环境名 (必填)
+--caption_model_path  VLM 模型路径 (如 /models/Qwen2.5-VL-7B-Instruct)
+
+# ===== Prompt 缓存 =====
+--prompt_cache_dir    存放 per-video YAML 的目录 (默认 {output_dir}/prompt_cache)
+
+# ===== 阶段控制 =====
+--use_text            Phase 3 主网络是否也注入 text embedding
+--skip_phase1_if_exists   Phase 1 输出已存在时跳过 (断点续跑)
+--force_recaption     强制重新生成 caption (忽略已有 YAML)
+
+# ===== Phase 1 加速 =====
+--phase1_downscale    Phase 1 使用低分辨率加速
+--phase1_W            Phase 1 宽度 (默认 432)
+--phase1_H            Phase 1 高度 (默认 240)
+
+# ===== 透传给 run_OR.py 的参数 =====
+--base_model_path, --vae_path, --diffueraser_path, --propainter_model_dir
+--pcm_weights_path, --anchor_model_path, --anchor_steps
+--video_length, --height, --width
+--ref_stride, --neighbor_length, --subvideo_length, --mask_dilation_iter
+--save_comparison, --comparison_fps, --no_metrics, --skip_vfid
+--text_guidance_scale
+```
+
+#### 2.1.3 核心流程（单视频）
+
+```
+def process_one_video(name, video_path, mask_path):
+
+    phase1_output = {output_dir}/phase1/{name}/diffueraser.mp4
+    prompt_yaml   = {prompt_cache_dir}/{name}.yaml
+    final_output  = {output_dir}/final/{name}/
+
+    # ── Phase 1 ──────────────────────────────────────────
+    if skip_phase1_if_exists AND phase1_output exists:
+        print("[SKIP] Phase 1")
+    else:
+        subprocess.run([
+            sys.executable, "run_OR.py",
+            "--input_video", video_path,
+            "--input_mask",  mask_path,
+            "--save_path",   {output_dir}/phase1/{name},
+            "--no_metrics",
+            # 不传 --use_anchor, 不传 --use_text
+            # 可选低分辨率:
+            *(["--height", phase1_H, "--width", phase1_W] if phase1_downscale),
+            # 透传其余参数...
+        ], check=True)
+
+    # ── Phase 2 ──────────────────────────────────────────
+    if prompt_yaml exists AND NOT force_recaption:
+        print("[SKIP] Phase 2: YAML already exists")
+    else:
+        caption_cmd = [
+            "conda", "run", "-n", caption_env, "--no-banner",
+            "python", "generate_captions.py",
+            "--video_path",   phase1_output,
+            "--mask_path",    mask_path,
+            "--output_yaml",  prompt_yaml,
+            "--model_path",   caption_model_path,
+        ]
+        subprocess.run(caption_cmd, check=True)
+
+    # ── Phase 3 ──────────────────────────────────────────
+    phase3_cmd = [
+        sys.executable, "run_OR.py",
+        "--input_video", video_path,      # 原始视频 (非粗修复)
+        "--input_mask",  mask_path,
+        "--save_path",   final_output,
+        "--use_anchor",
+        "--anchor_method", "sd-inpaint",
+        "--prompt_yaml", prompt_yaml,
+        # 透传其余参数 (原始分辨率)...
+    ]
+    if use_text:
+        phase3_cmd.append("--use_text")
+    subprocess.run(phase3_cmd, check=True)
+```
+
+#### 2.1.4 批量模式
+
+与 `run_OR.py` 的批量模式类似，编排器自行扫描 `--video_root` / `--mask_root` 构建 video_list，然后对每个视频调用 `process_one_video()`。这样 Phase 1 / 2 / 3 的 subprocess 调用都是单视频粒度的，天然支持断点续跑。
+
+```
+if --dataset:
+    video_list = scan_dataset(video_root, mask_root, dataset)
+    for info in video_list:
+        process_one_video(info["name"], info["video_path"], info["mask_path"])
+else:
+    process_one_video("single_video", input_video, input_mask)
+```
+
+#### 2.1.5 幂等性与断点续跑
+
+| 检查点 | 判定条件 | 行为 |
+|--------|---------|------|
+| Phase 1 产物 | `{output_dir}/phase1/{name}/diffueraser.mp4` 存在 | `--skip_phase1_if_exists` 时跳过 |
+| YAML prompt | `{prompt_cache_dir}/{name}.yaml` 存在且非空 | 默认跳过 captioning；`--force_recaption` 强制重跑 |
+| Phase 3 产物 | 始终重跑（精修复是最终目标） | 可选加 `--skip_phase3_if_exists` |
+
+如果中途任何 subprocess 失败（返回码非 0），`subprocess.run(check=True)` 会抛异常。编排器捕获异常、记录 failed 列表、继续处理下一个视频。重新运行同一命令即可从断点继续。
+
+#### 2.1.6 显存隔离
+
+三个阶段是三个独立进程：
+
+- Phase 1 进程退出 → GPU 显存自动释放
+- Phase 2 进程退出 → VLM 显存自动释放
+- Phase 3 进程启动 → 干净的 GPU 状态
+
+不需要手动 `del model; torch.cuda.empty_cache()`。
+
+---
+
+### 2.2 `generate_captions.py` — 独立 Captioning 脚本
+
+#### 2.2.1 职责
+
+- 从粗修复视频 (`diffueraser.mp4`) 中提取帧
+- 用原始 mask 遮盖被移除区域（灰色/黑色填充）
+- 用 VLM 生成背景场景描述 caption
+- 写入标准 YAML 文件
+
+#### 2.2.2 环境要求
+
+```
+conda create -n caption_env python=3.10
+conda activate caption_env
+pip install transformers>=4.45 torch torchvision pillow pyyaml opencv-python
+# 如需 flash-attention:
+pip install flash-attn --no-build-isolation
+```
+
+#### 2.2.3 命令行参数
+
+```
+--video_path         粗修复视频路径 (Phase 1 输出的 diffueraser.mp4)
+--mask_path          原始 mask 路径 (目录 / 视频 / 单图)
+--output_yaml        输出 YAML 路径
+--model_path         VLM 模型路径 (本地或 HuggingFace)
+--frame_strategy     取帧策略: "middle" | "multi_sample" (默认 "middle")
+--num_sample_frames  multi_sample 策略下取多少帧 (默认 3)
+--n_prompt           固定 negative prompt (默认预设值)
+--device             cuda / cpu (默认 cuda)
+```
+
+#### 2.2.4 取帧策略
+
+**策略一：`middle`（默认，推荐）**
+
+从 `diffueraser.mp4` 中取中间帧（避免首尾帧质量差的问题）。
+
+```
+帧序列: [0, 1, 2, ..., N-1]
+取帧:   frame_idx = N // 2
+```
+
+只对单帧做 captioning，速度最快。
+
+**策略二：`multi_sample`**
+
+从视频中均匀取多帧（默认 3 帧），分别 captioning 后选择最长 / 最具描述性的 caption，或拼接后做一次总结。
+
+```
+帧序列: [0, 1, 2, ..., N-1]
+间隔:   step = N // (num_sample_frames + 1)
+取帧:   [step, 2*step, 3*step]  (避开首尾)
+```
+
+多帧 captioning 更鲁棒，但耗时更多。
+
+#### 2.2.5 Mask 遮盖处理
+
+核心思想：将 mask 区域填充为 **纯灰色 (128, 128, 128)**，让 VLM 意识到这是被遮挡区域，只描述可见背景。
+
+```
+步骤:
+1. 从 diffueraser.mp4 读取指定帧 → frame_rgb (PIL)
+2. 从 mask_path 读取对应帧 → mask_gray (numpy, 0/255)
+3. 二值化: mask_binary = (mask_gray > 127).astype(uint8)
+4. 遮盖: frame_masked = frame_rgb * (1 - mask_3ch) + gray_fill * mask_3ch
+5. 输出: frame_masked (PIL) → 传给 VLM
+```
+
+注意：这里使用的是粗修复后的帧，mask 区域已经有了一定修复内容。用灰色遮盖后，VLM 只看到 mask 以外的真实背景，避免它描述粗修复的伪影。
+
+#### 2.2.6 VLM Prompt 设计（OR 场景专用）
+
+System prompt 的设计是整个 pipeline 中最关键的部分，直接影响 caption 质量。
+
+```
+System:
+    You are a scene description assistant for image inpainting.
+    The gray region in the image is a masked area where an object has been
+    removed. Your job is to describe ONLY the visible background scene
+    surrounding the gray region.
+
+    Rules:
+    1. Describe the environment, lighting, textures, colors, and spatial
+       layout of the VISIBLE areas only.
+    2. Do NOT describe the gray/masked region or guess what was there.
+    3. Do NOT mention people, animals, or foreground objects.
+    4. Output a single concise English sentence, maximum 30 words.
+    5. Focus on: ground surface, walls, sky, vegetation, architecture,
+       lighting conditions, atmosphere.
+
+    Example outputs:
+    - "A sunlit park path with lush green grass, scattered trees, and
+       warm natural lighting"
+    - "An indoor office hallway with white walls, fluorescent lighting,
+       and gray carpeted floor"
+    - "A busy urban street with brick buildings, overcast sky, and
+       wet asphalt"
+
+User:
+    [image: masked frame]
+    Describe the background scene in this image.
+```
+
+#### 2.2.7 YAML 输出格式
+
+```yaml
+# Auto-generated by generate_captions.py
+# Video: /path/to/phase1/bear/diffueraser.mp4
+# Mask:  /path/to/masks/bear
+
+prompt:
+  - "a sunlit park path with lush green grass and scattered trees"
+
+n_prompt:
+  - "blurry, flickering, distorted, artifacts, text, watermark, low quality"
+
+prompt_source: "auto_masked"
+prompt_model: "Qwen2.5-VL-7B-Instruct"
+prompt_timestamp: "2026-02-09T15:30:00"
+prompt_frame_idx: 30
+text_guidance_scale: 2.0
+```
+
+#### 2.2.8 YAML 缓存查找逻辑
+
+`generate_captions.py` 启动时先检查 `--output_yaml` 是否已存在且包含有效 prompt：
+
+```
+if output_yaml exists:
+    config = yaml.safe_load(output_yaml)
+    if config["prompt"][0] is not empty:
+        print("[SKIP] YAML already contains prompt. Use --force to overwrite.")
+        exit(0)
+```
+
+这使得重复调用是安全的（幂等）。
+
+#### 2.2.9 推荐模型
+
+**首选：Qwen2.5-VL-7B-Instruct**
+
+| 属性 | 说明 |
+|------|------|
+| 模型 ID | `Qwen/Qwen2.5-VL-7B-Instruct` |
+| 显存 | ~16GB (FP16)，~8GB (AWQ 4bit) |
+| 输入 | 原生支持单/多图像 + 视频 |
+| 许可 | Apache 2.0 |
+| 优势 | 2025 SOTA 级开源 VLM；指令跟随能力极强；中英双语 |
+
+**备选：InternVL2.5-8B**
+
+如果 Qwen2.5-VL 不可用，InternVL2.5-8B 是另一个强力选择，同样支持图像理解和指令跟随。
+
+---
+
+### 2.3 `run_OR.py` — 修改设计
+
+所有修改均为 **增量添加**，不触碰任何现有逻辑。
+
+#### 2.3.1 `parse_args()` 新增参数
+
+在现有 `parse_args()` 函数的 `# -------------------- Anchor frame --------------------` 段之后，新增：
+
+```
+# -------------------- Text / Prompt --------------------
+--use_text             action="store_true"
+                       启用主网络 text embedding (可选)
+
+--prompt_yaml          type=str, default=None
+                       YAML 配置文件路径 (包含 prompt / n_prompt)
+
+--prompt               type=str, default=None
+                       直接传入 prompt (优先级高于 YAML)
+
+--n_prompt             type=str, default=None
+                       直接传入 negative prompt
+
+--text_guidance_scale  type=float, default=2.0
+                       use_text 开启时的 CFG guidance scale
+```
+
+#### 2.3.2 `main()` — Prompt 解析与校验
+
+在 `main()` 中，模型加载 **之前**，新增 prompt 解析逻辑：
+
+```
+位置: L704 (def main():) 之后，L724 (print("[Loading DiffuEraser …]")) 之前
+
+逻辑:
+1. prompt = "", n_prompt = "", text_guidance_scale = args.text_guidance_scale
+
+2. 优先级 1 — 命令行直接指定:
+   if args.prompt:  prompt = args.prompt
+   if args.n_prompt: n_prompt = args.n_prompt
+
+3. 优先级 2 — 从 YAML 加载:
+   if not prompt and args.prompt_yaml:
+       从 YAML 读取 prompt, n_prompt, text_guidance_scale
+
+4. 校验:
+   if args.use_anchor and args.anchor_method == "sd-inpaint":
+       if not prompt.strip():
+           raise ValueError("--use_anchor with sd-inpaint requires text prompt.")
+
+5. 将解析后的 prompt, n_prompt, text_guidance_scale 存入 args:
+   args._resolved_prompt = prompt
+   args._resolved_n_prompt = n_prompt
+   args._resolved_text_guidance_scale = text_guidance_scale
+```
+
+#### 2.3.3 YAML 加载辅助函数
+
+在 `run_OR.py` 顶部 import 区域新增 `import yaml`，并在 `SECTION A` 之前新增：
+
+```python
+def load_prompt_from_yaml(yaml_path):
+    """从 YAML 加载 prompt 和 n_prompt。"""
+    with open(yaml_path, 'r') as f:
+        config = yaml.safe_load(f) or {}
+
+    prompt = ""
+    if 'prompt' in config and config['prompt']:
+        p = config['prompt']
+        prompt = p[0] if isinstance(p, list) else str(p)
+
+    n_prompt = ""
+    if 'n_prompt' in config and config['n_prompt']:
+        np_ = config['n_prompt']
+        n_prompt = np_[0] if isinstance(np_, list) else str(np_)
+
+    text_guidance_scale = config.get('text_guidance_scale', 2.0)
+
+    return prompt, n_prompt, text_guidance_scale
+```
+
+#### 2.3.4 `process_single_video()` — Prompt 传递
+
+**Anchor inpainting 调用点 (L502)**：
+
+当前代码：
+```python
+anchor_pil = anchor_inpainter.inpaint(orig_frame_pil, mask_pil)
+```
+
+修改为：
+```python
+anchor_pil = anchor_inpainter.inpaint(
+    orig_frame_pil, mask_pil,
+    prompt=args._resolved_prompt,
+    n_prompt=args._resolved_n_prompt,
+)
+```
+
+**DiffuEraser 调用点 (L512)**：
+
+当前代码：
+```python
+video_inpainting_sd.forward(
+    validation_image=video_path,
+    validation_mask=mask_path,
+    priori=priori_path,
+    output_path=pred_path,
+    ...
+    anchor_frame=anchor_pil,
+    anchor_frame_idx=args.anchor_frame_idx if args.use_anchor else None,
+)
+```
+
+修改为（新增两个参数）：
+```python
+video_inpainting_sd.forward(
+    validation_image=video_path,
+    validation_mask=mask_path,
+    priori=priori_path,
+    output_path=pred_path,
+    ...
+    anchor_frame=anchor_pil,
+    anchor_frame_idx=args.anchor_frame_idx if args.use_anchor else None,
+    prompt=args._resolved_prompt if args.use_text else "",
+    n_prompt=args._resolved_n_prompt if args.use_text else "",
+    guidance_scale=args._resolved_text_guidance_scale if args.use_text else None,
+)
+```
+
+#### 2.3.5 四种运行模式行为对照
+
+| 模式 | `--use_anchor` | `--use_text` | Anchor Prompt | 主网络 Prompt | `guidance_scale` |
+|:----:|:-:|:-:|---|---|---|
+| 1 | ✅ | ❌ | 从 YAML/CLI 读取 → anchor_inpainter | `""` (空串, 无条件) | `0` (原始行为) |
+| 2 | ✅ | ✅ | 从 YAML/CLI 读取 → anchor_inpainter | 同一 prompt → pipeline | `text_guidance_scale` |
+| 3 | ❌ | ❌ | N/A | `""` (空串, 无条件) | `0` (原始行为) |
+| 4 | ❌ | ✅ | N/A | 从 YAML/CLI 读取 → pipeline | `text_guidance_scale` |
+
+模式 3 是当前默认行为，完全不变。
+
+---
+
+### 2.4 `diffueraser_OR.py` — 修改设计
+
+#### 2.4.1 `DiffuEraser.forward()` 签名变更
+
+当前签名 (L294)：
+```python
+def forward(self, validation_image, validation_mask, priori, output_path,
+            max_img_size=1280, video_length=2, mask_dilation_iter=4,
+            nframes=22, seed=None, revision=None, guidance_scale=None, blended=True,
+            anchor_frame=None, anchor_frame_idx=None):
+```
+
+新增两个参数：
+```python
+def forward(self, validation_image, validation_mask, priori, output_path,
+            max_img_size=1280, video_length=2, mask_dilation_iter=4,
+            nframes=22, seed=None, revision=None, guidance_scale=None, blended=True,
+            anchor_frame=None, anchor_frame_idx=None,
+            prompt="", n_prompt=""):      # ← 新增
+```
+
+#### 2.4.2 `validation_prompt` 替换
+
+当前 L298：
+```python
+validation_prompt = ""
+```
+
+替换为：
+```python
+validation_prompt = prompt  # 由外部传入，默认 "" 保持原始行为
+```
+
+这一行的替换使得 L452 (`self.pipeline(... prompt=validation_prompt ...)`) 和 L539 (`self.pipeline(... prompt=validation_prompt ...)`) 两处 pipeline 调用自动使用新 prompt，**无需修改 pipeline 调用代码**。
+
+#### 2.4.3 `guidance_scale` 联动
+
+当前 L291：
+```python
+self.guidance_scale = 0
+```
+
+当前 L299：
+```python
+guidance_scale_final = self.guidance_scale if guidance_scale == None else guidance_scale
+```
+
+这意味着：
+- `--use_text` **关闭**时：`run_OR.py` 传入 `guidance_scale=None` → 使用 `self.guidance_scale = 0` → 无 CFG → 原始行为
+- `--use_text` **开启**时：`run_OR.py` 传入 `guidance_scale=text_guidance_scale (如 2.0)` → 覆盖为正值 → CFG 生效 → text 真正引导去噪
+
+**不需要修改 L291 或 L299 的任何代码**。`guidance_scale` 参数已经存在于 `forward()` 签名中，外部传入即可。
+
+#### 2.4.4 影响范围分析
+
+| 已有代码位置 | 是否受影响 | 说明 |
+|------------|:--:|------|
+| L298 `validation_prompt = ""` | ✅ 替换 | 改为 `validation_prompt = prompt` |
+| L299 `guidance_scale_final = ...` | ❌ 不变 | 已有 `guidance_scale` 参数覆盖机制 |
+| L452 pre-inference pipeline | ❌ 不变 | 已使用 `validation_prompt` 变量 |
+| L539 main inference pipeline | ❌ 不变 | 已使用 `validation_prompt` 变量 |
+| L489-532 Anchor injection | ❌ 不变 | anchor 拼接逻辑不涉及 prompt |
+| L553-564 Anchor strip + replace | ❌ 不变 | 后处理逻辑不涉及 prompt |
+| L569-596 Compose | ❌ 不变 | mask 混合逻辑不涉及 prompt |
+
+---
+
+### 2.5 `anchor_inpainter.py` — 修改设计
+
+#### 2.5.1 `SDInpaintAnchorInpainter.inpaint()` 签名变更
+
+当前签名：
+```python
+def inpaint(self, frame: Image.Image, mask: Image.Image) -> Image.Image:
+```
+
+新增可选参数：
+```python
+def inpaint(self, frame: Image.Image, mask: Image.Image,
+            prompt: str = None, n_prompt: str = None) -> Image.Image:
+```
+
+#### 2.5.2 `inpaint()` 内部 prompt 使用
+
+当前 L156-162：
+```python
+result = self.pipe(
+    prompt="",
+    image=frame_resized,
+    mask_image=mask_resized,
+    num_inference_steps=self.num_inference_steps,
+    guidance_scale=7.5,
+).images[0]
+```
+
+修改为：
+```python
+_prompt = prompt if prompt is not None else ""
+_n_prompt = n_prompt if n_prompt is not None else ""
+
+result = self.pipe(
+    prompt=_prompt,
+    negative_prompt=_n_prompt,
+    image=frame_resized,
+    mask_image=mask_resized,
+    num_inference_steps=self.num_inference_steps,
+    guidance_scale=7.5,
+).images[0]
+```
+
+当 prompt 为 `None` 或不传时，行为与现有代码完全一致（空串 prompt）。
+
+#### 2.5.3 `ProPainterAnchorInpainter` 不受影响
+
+`ProPainterAnchorInpainter.inpaint()` 不使用 text prompt（纯像素级合成），但为接口一致性，也添加 `prompt=None, n_prompt=None` 参数并忽略：
+
+```python
+def inpaint(self, frame, mask, prompt=None, n_prompt=None):
+    # prompt ignored — ProPainter is pixel-level, no text conditioning
+    ...  # 原有逻辑不变
+```
+
+#### 2.5.4 `BaseAnchorInpainter` 抽象接口更新
+
+```python
+@abc.abstractmethod
+def inpaint(self, frame, mask, prompt=None, n_prompt=None):
+    ...
+```
+
+所有子类均兼容此接口。
+
+---
+
+## 3. YAML 统一配置设计
+
+### 3.1 完整 Schema
+
+```yaml
+# ============================================================
+#  DiffuEraser OR Prompt Config — per-video
+#  Auto-generated by generate_captions.py
+# ============================================================
+
+# --- Text Prompt (anchor + 主网络共用) ---
+prompt:
+  - "a sunlit park path with lush green grass and scattered trees"
+
+n_prompt:
+  - "blurry, flickering, distorted, artifacts, text, watermark, low quality"
+
+# --- 主网络 text 控制 ---
+text_guidance_scale: 2.0
+
+# --- 元信息 (可选, 便于追踪) ---
+prompt_source: "auto_masked"           # manual | auto_masked
+prompt_model: "Qwen2.5-VL-7B-Instruct"
+prompt_timestamp: "2026-02-09T15:30:00"
+prompt_frame_idx: 30                   # 用于 captioning 的帧索引
+source_video: "/path/to/phase1/bear/diffueraser.mp4"
+```
+
+### 3.2 字段归属
+
+| 字段 | 归属 | 说明 |
+|------|------|------|
+| `prompt` | **共用** | anchor SD inpainting + 主网络 cross-attention |
+| `n_prompt` | **共用** | negative prompt |
+| `text_guidance_scale` | **主网络专用** | 主网络 CFG scale (anchor 的 guidance_scale 固定 7.5) |
+| `prompt_source` | 元信息 | 标记来源 (手动 / 自动) |
+| `prompt_model` | 元信息 | captioning 模型名 |
+| `prompt_timestamp` | 元信息 | 生成时间 |
+| `prompt_frame_idx` | 元信息 | captioning 使用的帧索引 |
+
+### 3.3 Prompt 解析优先级
+
+```
+1. --prompt "xxx" (命令行直接指定)  →  最高优先
+2. --prompt_yaml /path/to/yaml      →  从 YAML 读取
+3. 默认 ""                          →  空串 (无条件, 等效原始行为)
+```
+
+---
+
+## 4. 用户使用方式
+
+### 4.0 当前基线命令（你现在正在用的）
+
+这是你现有的 OR + anchor + no_metrics 命令，**不涉及 text，不涉及 auto-refine**：
+
+```bash
+# 当前基线: OR no metric no text (锚定帧版本)
+CUDA_VISIBLE_DEVICES=0 python run_OR.py \
+  --dataset davis \
+  --video_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/JPEGImages/Full-Resolution \
+  --mask_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/Annotations/Full-Resolution \
+  --gt_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/JPEGImages/Full-Resolution \
+  --save_path results_nometric_notext_OR_360_720 \
+  --video_length 60 \
+  --ref_stride 6 --neighbor_length 25 --subvideo_length 80 \
+  --mask_dilation_iter 4 \
+  --base_model_path /home/hj/DiffuEraser_new/weights/stable-diffusion-v1-5 \
+  --vae_path /home/hj/DiffuEraser_new/weights/sd-vae-ft-mse \
+  --diffueraser_path /home/hj/DiffuEraser_new/weights/diffuEraser \
+  --propainter_model_dir /home/hj/DiffuEraser_new/weights/propainter \
+  --pcm_weights_path /home/hj/DiffuEraser_new/weights/PCM_Weights \
+  --no_metrics \
+  --height 360 --width 720 \
+  --use_anchor \
+  --anchor_frame_idx 0 \
+  --anchor_method sd-inpaint \
+  --anchor_model_path runwayml/stable-diffusion-inpainting \
+  --save_comparison
+```
+
+此命令在修改完成后仍然 **100% 兼容**，行为不变（因为没传 `--use_text` 和 `--prompt_yaml`，走模式 1：anchor ON + text OFF）。
+
+### 4.1 前置准备
+
+```bash
+# 1. 创建 captioning 环境 (只需做一次)
+conda create -n caption_env python=3.10 -y
+conda activate caption_env
+pip install transformers>=4.45 torch torchvision pillow pyyaml opencv-python-headless
+# 如需 flash-attention 加速:
+# pip install flash-attn --no-build-isolation
+
+# 下载 VLM 模型 (只需做一次)
+huggingface-cli download Qwen/Qwen2.5-VL-7B-Instruct \
+  --local-dir /home/hj/DiffuEraser_new/weights/Qwen2.5-VL-7B-Instruct
+
+# 2. 回到 DiffuEraser 主环境
+conda activate diffueraser  # 你当前的环境名
+```
+
+### 4.2 一条命令：全自动 Auto-Refine（批量 DAVIS）
+
+```bash
+# 全自动三阶段: 粗修复 → captioning → anchor+text 精修复
+CUDA_VISIBLE_DEVICES=0 python run_OR_auto.py \
+  --dataset davis \
+  --video_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/JPEGImages/Full-Resolution \
+  --mask_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/Annotations/Full-Resolution \
+  --gt_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/JPEGImages/Full-Resolution \
+  --output_dir results_autorefine_OR_360_720 \
+  --video_length 60 \
+  --ref_stride 6 --neighbor_length 25 --subvideo_length 80 \
+  --mask_dilation_iter 4 \
+  --base_model_path /home/hj/DiffuEraser_new/weights/stable-diffusion-v1-5 \
+  --vae_path /home/hj/DiffuEraser_new/weights/sd-vae-ft-mse \
+  --diffueraser_path /home/hj/DiffuEraser_new/weights/diffuEraser \
+  --propainter_model_dir /home/hj/DiffuEraser_new/weights/propainter \
+  --pcm_weights_path /home/hj/DiffuEraser_new/weights/PCM_Weights \
+  --no_metrics \
+  --height 360 --width 720 \
+  --anchor_frame_idx 0 \
+  --anchor_method sd-inpaint \
+  --anchor_model_path runwayml/stable-diffusion-inpainting \
+  --save_comparison \
+  --caption_env caption_env \
+  --caption_model_path /home/hj/DiffuEraser_new/weights/Qwen2.5-VL-7B-Instruct \
+  --use_text \
+  --skip_phase1_if_exists \
+  --phase1_downscale --phase1_W 432 --phase1_H 240
+```
+
+与你当前基线命令的差异对照：
+
+| 参数 | 基线命令 | Auto-Refine 命令 |
+|------|---------|-----------------|
+| 入口脚本 | `run_OR.py` | `run_OR_auto.py` |
+| `--save_path` | `results_nometric_notext_OR_360_720` | `--output_dir results_autorefine_OR_360_720` |
+| `--use_anchor` | 有 | **不需要传** (编排器 Phase 3 自动加) |
+| `--caption_env` | 无 | `caption_env` (新增) |
+| `--caption_model_path` | 无 | VLM 路径 (新增) |
+| `--use_text` | 无 | 有 (新增，控制主网络是否也注入 text) |
+| `--skip_phase1_if_exists` | 无 | 有 (新增，断点续跑) |
+| `--phase1_downscale` | 无 | 有 (新增，Phase 1 低分辨率加速) |
+
+其他参数（model paths, DAVIS paths, video_length, ref_stride 等）完全一致，直接透传给 `run_OR.py`。
+
+### 4.3 编排器内部实际执行的三条命令
+
+当你运行上述 Auto-Refine 命令时，`run_OR_auto.py` 内部对 **每个视频**（如 `bear`）会依次 subprocess 执行：
+
+```bash
+# ── Phase 1: 粗修复 (低分辨率, 无 anchor, 无 text) ──
+CUDA_VISIBLE_DEVICES=0 python run_OR.py \
+  --dataset davis \
+  --video_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/JPEGImages/Full-Resolution \
+  --mask_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/Annotations/Full-Resolution \
+  --save_path results_autorefine_OR_360_720/phase1 \
+  --video_length 60 \
+  --ref_stride 6 --neighbor_length 25 --subvideo_length 80 \
+  --mask_dilation_iter 4 \
+  --base_model_path /home/hj/DiffuEraser_new/weights/stable-diffusion-v1-5 \
+  --vae_path /home/hj/DiffuEraser_new/weights/sd-vae-ft-mse \
+  --diffueraser_path /home/hj/DiffuEraser_new/weights/diffuEraser \
+  --propainter_model_dir /home/hj/DiffuEraser_new/weights/propainter \
+  --pcm_weights_path /home/hj/DiffuEraser_new/weights/PCM_Weights \
+  --no_metrics \
+  --height 240 --width 432
+  # 注意: 无 --use_anchor, 无 --use_text, 低分辨率
+
+# ── Phase 2: Captioning (跨 conda 环境) ──
+conda run -n caption_env --no-banner python generate_captions.py \
+  --video_path results_autorefine_OR_360_720/phase1/bear/diffueraser.mp4 \
+  --mask_path /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/Annotations/Full-Resolution/bear \
+  --output_yaml results_autorefine_OR_360_720/prompt_cache/bear.yaml \
+  --model_path /home/hj/DiffuEraser_new/weights/Qwen2.5-VL-7B-Instruct
+
+# ── Phase 3: 精修复 (原始分辨率, anchor ON, text ON) ──
+CUDA_VISIBLE_DEVICES=0 python run_OR.py \
+  --dataset davis \
+  --video_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/JPEGImages/Full-Resolution \
+  --mask_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/Annotations/Full-Resolution \
+  --gt_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/JPEGImages/Full-Resolution \
+  --save_path results_autorefine_OR_360_720/final \
+  --video_length 60 \
+  --ref_stride 6 --neighbor_length 25 --subvideo_length 80 \
+  --mask_dilation_iter 4 \
+  --base_model_path /home/hj/DiffuEraser_new/weights/stable-diffusion-v1-5 \
+  --vae_path /home/hj/DiffuEraser_new/weights/sd-vae-ft-mse \
+  --diffueraser_path /home/hj/DiffuEraser_new/weights/diffuEraser \
+  --propainter_model_dir /home/hj/DiffuEraser_new/weights/propainter \
+  --pcm_weights_path /home/hj/DiffuEraser_new/weights/PCM_Weights \
+  --no_metrics \
+  --height 360 --width 720 \
+  --use_anchor \
+  --anchor_frame_idx 0 \
+  --anchor_method sd-inpaint \
+  --anchor_model_path runwayml/stable-diffusion-inpainting \
+  --save_comparison \
+  --use_text \
+  --prompt_yaml results_autorefine_OR_360_720/prompt_cache/bear.yaml
+```
+
+### 4.4 直接使用 run_OR.py（已有 prompt 时）
+
+如果你已经手动写好了 prompt YAML，或者 Phase 2 已经跑完生成了 YAML，可以直接用 `run_OR.py`：
+
+```bash
+# 模式 2: anchor ON + text ON (与你当前基线命令相比只多了 3 个参数)
+CUDA_VISIBLE_DEVICES=0 python run_OR.py \
+  --dataset davis \
+  --video_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/JPEGImages/Full-Resolution \
+  --mask_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/Annotations/Full-Resolution \
+  --gt_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/JPEGImages/Full-Resolution \
+  --save_path results_anchor_text_OR_360_720 \
+  --video_length 60 \
+  --ref_stride 6 --neighbor_length 25 --subvideo_length 80 \
+  --mask_dilation_iter 4 \
+  --base_model_path /home/hj/DiffuEraser_new/weights/stable-diffusion-v1-5 \
+  --vae_path /home/hj/DiffuEraser_new/weights/sd-vae-ft-mse \
+  --diffueraser_path /home/hj/DiffuEraser_new/weights/diffuEraser \
+  --propainter_model_dir /home/hj/DiffuEraser_new/weights/propainter \
+  --pcm_weights_path /home/hj/DiffuEraser_new/weights/PCM_Weights \
+  --no_metrics \
+  --height 360 --width 720 \
+  --use_anchor \
+  --anchor_frame_idx 0 \
+  --anchor_method sd-inpaint \
+  --anchor_model_path runwayml/stable-diffusion-inpainting \
+  --save_comparison \
+  --use_text \
+  --prompt_yaml results_autorefine_OR_360_720/prompt_cache/bear.yaml \
+  --text_guidance_scale 2.0
+```
+
+### 4.5 分步手动执行（如果 conda run 有问题）
+
+如果 `conda run` 跨环境调用有问题，你可以手动分三步：
+
+```bash
+# Step 1: 粗修复 (在 diffueraser 环境, 低分辨率加速)
+conda activate diffueraser
+CUDA_VISIBLE_DEVICES=0 python run_OR.py \
+  --dataset davis \
+  --video_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/JPEGImages/Full-Resolution \
+  --mask_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/Annotations/Full-Resolution \
+  --save_path results_phase1_OR_240_432 \
+  --video_length 60 \
+  --ref_stride 6 --neighbor_length 25 --subvideo_length 80 \
+  --mask_dilation_iter 4 \
+  --base_model_path /home/hj/DiffuEraser_new/weights/stable-diffusion-v1-5 \
+  --vae_path /home/hj/DiffuEraser_new/weights/sd-vae-ft-mse \
+  --diffueraser_path /home/hj/DiffuEraser_new/weights/diffuEraser \
+  --propainter_model_dir /home/hj/DiffuEraser_new/weights/propainter \
+  --pcm_weights_path /home/hj/DiffuEraser_new/weights/PCM_Weights \
+  --no_metrics \
+  --height 240 --width 432
+
+# Step 2: 生成 caption (切换到 caption 环境)
+conda activate caption_env
+python generate_captions.py \
+  --video_path results_phase1_OR_240_432/bear/diffueraser.mp4 \
+  --mask_path /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/Annotations/Full-Resolution/bear \
+  --output_yaml prompt_cache/bear.yaml \
+  --model_path /home/hj/DiffuEraser_new/weights/Qwen2.5-VL-7B-Instruct
+# 对每个视频重复此步骤, 或写个 bash for 循环
+
+# Step 3: 精修复 (切回 diffueraser 环境)
+conda activate diffueraser
+CUDA_VISIBLE_DEVICES=0 python run_OR.py \
+  --dataset davis \
+  --video_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/JPEGImages/Full-Resolution \
+  --mask_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/Annotations/Full-Resolution \
+  --gt_root /home/hj/DiffuEraser_new/DAVIS-2017-trainval-Full-Resolution/DAVIS/JPEGImages/Full-Resolution \
+  --save_path results_autorefine_final_OR_360_720 \
+  --video_length 60 \
+  --ref_stride 6 --neighbor_length 25 --subvideo_length 80 \
+  --mask_dilation_iter 4 \
+  --base_model_path /home/hj/DiffuEraser_new/weights/stable-diffusion-v1-5 \
+  --vae_path /home/hj/DiffuEraser_new/weights/sd-vae-ft-mse \
+  --diffueraser_path /home/hj/DiffuEraser_new/weights/diffuEraser \
+  --propainter_model_dir /home/hj/DiffuEraser_new/weights/propainter \
+  --pcm_weights_path /home/hj/DiffuEraser_new/weights/PCM_Weights \
+  --no_metrics \
+  --height 360 --width 720 \
+  --use_anchor \
+  --anchor_frame_idx 0 \
+  --anchor_method sd-inpaint \
+  --anchor_model_path runwayml/stable-diffusion-inpainting \
+  --save_comparison \
+  --use_text \
+  --prompt_yaml prompt_cache/bear.yaml \
+  --text_guidance_scale 2.0
+```
+
+---
+
+## 5. 目录结构（运行时）
+
+```
+/home/hj/DiffuEraser_new/
+├── run_OR.py                     # 单次推理入口 (修改)
+├── run_OR_auto.py                # 编排器 (新增)
+├── generate_captions.py          # 独立 captioning 脚本 (新增)
+├── anchor_inpainter.py           # anchor 模块 (修改)
+├── diffueraser/
+│   └── diffueraser_OR.py         # DiffuEraser 核心 (修改)
+├── propainter/
+│   └── inference_OR.py           # ProPainter (不变)
+├── weights/
+│   ├── stable-diffusion-v1-5/
+│   ├── sd-vae-ft-mse/
+│   ├── diffuEraser/
+│   ├── propainter/
+│   ├── PCM_Weights/
+│   └── Qwen2.5-VL-7B-Instruct/  # VLM 模型 (仅 caption_env 使用)
+│
+├── results_nometric_notext_OR_360_720/   # 你当前基线的输出 (不变)
+│   ├── bear/
+│   │   ├── diffueraser.mp4
+│   │   ├── propainter.mp4
+│   │   ├── anchor_frame.png
+│   │   └── comparison_4in1.mp4
+│   └── ...
+│
+└── results_autorefine_OR_360_720/        # Auto-Refine 输出
+    ├── prompt_cache/                     # per-video YAML
+    │   ├── bear.yaml
+    │   ├── car-shadow.yaml
+    │   └── ...
+    ├── phase1/                           # Phase 1 粗修复 (低分辨率)
+    │   ├── bear/
+    │   │   ├── diffueraser.mp4
+    │   │   └── propainter.mp4
+    │   └── ...
+    └── final/                            # Phase 3 精修复 (最终结果)
+        ├── bear/
+        │   ├── diffueraser.mp4           # ← 最终输出
+        │   ├── propainter.mp4
+        │   ├── anchor_frame.png
+        │   └── comparison_4in1.mp4
+        └── ...
+```
+
+---
+
+## 6. Text Embedding 注入机制详解
+
+### 6.1 当前 Cross-Attention 路径
+
+BrushNet-based pipeline 的 text conditioning 路径已经存在：
+
+```
+prompt (str)
+  → tokenizer → input_ids
+  → text_encoder → prompt_embeds (shape: [1, 77, 768])
+  → UNetMotionModel: cross-attention layers (每个 DownBlock / UpBlock)
+  → BrushNet:        cross-attention layers (条件分支)
+```
+
+当前 `validation_prompt = ""` 时，`prompt_embeds` 是 BOS + EOS token 的编码，等效于 unconditional embedding。再加上 `guidance_scale = 0`（L291），CFG 完全关闭，text 通路虽然存在但完全不起作用。
+
+### 6.2 启用 Text Conditioning 的条件
+
+要让 text 真正生效，需要同时满足：
+
+1. `prompt` 非空（传入有意义的场景描述）
+2. `guidance_scale > 0`（CFG 打开，条件/无条件分支有差异才能引导）
+
+这就是为什么 `--use_text` 开启时，必须同时将 `guidance_scale` 设为正值（通过 `text_guidance_scale` 参数传入）。
+
+### 6.3 推荐 `text_guidance_scale` 范围
+
+| 值 | 效果 |
+|----|------|
+| 0 | 等效无 text (原始行为) |
+| 1.0 - 2.0 | 轻微语义引导，时序一致性影响最小 (推荐起步值) |
+| 2.0 - 3.0 | 中等语义引导，可能轻微影响时序 |
+| 3.0+ | 强语义引导，可能破坏时序一致性 (不推荐) |
+
+**建议**：从 `text_guidance_scale = 2.0` 开始实验，根据结果调整。
+
+### 6.4 Pre-inference 与 Main Inference 一致性
+
+`diffueraser_OR.py` 中有两处 pipeline 调用：
+
+1. **Pre-inference** (L450)：对稀疏采样帧做预去噪
+2. **Main inference** (L539)：对全部帧做最终去噪
+
+两者都使用同一个 `validation_prompt` 变量，因此 prompt 注入天然一致，不需要额外处理。
+
+---
+
+## 7. OR 场景 Prompt 生成策略分析
+
+### 7.1 核心矛盾
+
+OR 的目标是让被移除物体"从未出现过"。mask 区域的真实背景在原视频中不可见，无法获得 GT 来反推"正确描述"。
+
+### 7.2 本方案的解决思路
+
+```
+原始视频 (mask区域有物体)
+       │
+       ▼ Phase 1: 无 anchor 粗修复
+       │
+粗修复视频 (mask区域有初步修复内容, 可能有伪影但大致合理)
+       │
+       ▼ 取帧 + mask遮盖 (只暴露真实背景)
+       │
+masked帧 (灰色区域 + 真实背景)
+       │
+       ▼ VLM captioning (system prompt 约束只描述可见背景)
+       │
+caption: "a sunlit park path with green grass"
+       │
+       ▼ Phase 3: anchor + text 精修复
+       │
+最终结果 (质量显著提升)
+```
+
+### 7.3 为什么这个方案可行
+
+1. **VLM 看的是 masked 帧，不是粗修复内容**：灰色遮盖后，VLM 只看到 mask 以外的真实背景，不会受粗修复伪影干扰。
+2. **粗修复只用于确保帧可解码**：Phase 1 的唯一作用是生成一个可读的 mp4 文件，其质量不影响 caption。
+3. **Caption 描述的是背景语义**：VLM 的 system prompt 严格约束只描述可见区域的环境/光照/纹理，不涉及被移除物体。
+4. **误差不累积**：Phase 3 使用的是原始视频 + 原始 mask（不是粗修复结果），caption 只影响 anchor 和 text conditioning 的语义方向。
+
+### 7.4 Phase 1 低分辨率加速
+
+Phase 1 的粗修复只是为了获取 captioning 用的帧，不需要高质量。使用低分辨率可以显著加速：
+
+| 分辨率 | 大约推理时间 (60帧, A100) | 用途 |
+|--------|--------------------------|------|
+| 360×720 (原始) | ~2-3 min | 最终输出 |
+| 240×432 (降分辨率) | ~0.5-1 min | Phase 1 粗修复 (仅供 captioning) |
+
+`--phase1_downscale --phase1_W 432 --phase1_H 240` 开启低分辨率 Phase 1。
+
+---
+
+## 8. 错误处理与边界情况
+
+### 8.1 YAML 不存在或 prompt 为空
+
+```
+场景: Phase 2 失败, YAML 未生成
+处理: Phase 3 的 run_OR.py 检测到 --use_anchor + prompt 为空 → raise ValueError
+用户: 检查 Phase 2 日志, 修复后重跑 (编排器会跳过已完成的 Phase 1)
+```
+
+### 8.2 VLM 生成了不合适的 caption
+
+```
+场景: caption 包含 "a person walking" (描述了被移除的物体)
+处理: 用户可手动编辑 YAML 的 prompt 字段, 然后重跑 Phase 3
+      或调整 system prompt 后 --force_recaption
+```
+
+### 8.3 conda 环境不可用
+
+```
+场景: conda run -n caption_env 失败
+处理: 编排器捕获异常, 打印明确错误信息:
+      "Caption environment 'caption_env' not found.
+       Please create it: conda create -n caption_env ..."
+      用户也可以手动分步执行 (参见 4.5 节)
+```
+
+### 8.4 mask 格式不匹配
+
+```
+场景: Phase 1 输出的 diffueraser.mp4 帧数 与 mask 帧数不一致
+处理: generate_captions.py 取 min(video_frames, mask_frames)
+      取帧时使用 clamp: frame_idx = min(target_idx, total_frames - 1)
+```
+
+---
+
+## 9. 实验建议
+
+### 9.1 消融实验矩阵
+
+以你当前基线命令为基础，只需添加/去掉标记的参数：
+
+| 实验 | anchor | text | 相对基线命令的改动 | save_path 建议 |
+|------|:------:|:----:|------|------|
+| Baseline (无 anchor) | ❌ | ❌ | 去掉 `--use_anchor` 及 anchor 相关参数 | `results_baseline_OR_360_720` |
+| Anchor only (你当前的) | ✅ | ❌ | 就是你当前的命令，无需改动 | `results_nometric_notext_OR_360_720` |
+| Text only | ❌ | ✅ | 去掉 `--use_anchor`，加 `--use_text --prompt_yaml xxx --text_guidance_scale 2.0` | `results_textonly_OR_360_720` |
+| Anchor + Text | ✅ | ✅ | 加 `--use_text --prompt_yaml xxx --text_guidance_scale 2.0` | `results_anchor_text_OR_360_720` |
+| Auto-Refine (完整) | ✅ | ✅ | 用 `run_OR_auto.py` | `results_autorefine_OR_360_720` |
+
+### 9.2 text_guidance_scale 扫参
+
+对代表性视频，扫描 `text_guidance_scale` ∈ {0.5, 1.0, 1.5, 2.0, 2.5, 3.0}，观察：
+- PSNR / SSIM / LPIPS 变化
+- 时序一致性 (Ewarp) 变化
+- 视觉质量主观评分
+
+### 9.3 Prompt 质量评估
+
+对同一视频，比较：
+- VLM 自动生成的 prompt
+- 人工撰写的 prompt
+- 空 prompt (baseline)
+
+如果 VLM prompt 和人工 prompt 效果接近，说明 auto-caption pipeline 可靠。
+
+---
+
+## 10. 总结
+
+| 组件 | 改动量 | 复杂度 |
+|------|--------|--------|
+| `run_OR_auto.py` (新增) | ~200 行 | 低 (纯 subprocess 编排) |
+| `generate_captions.py` (新增) | ~150 行 | 中 (VLM 加载 + 取帧 + YAML 写入) |
+| `run_OR.py` (修改) | ~40 行新增 | 低 (新增参数 + 解析 + 传递) |
+| `diffueraser_OR.py` (修改) | ~3 行新增 | 极低 (签名 + 一行赋值) |
+| `anchor_inpainter.py` (修改) | ~10 行新增 | 极低 (签名 + 条件赋值) |
+
+**核心原则**：所有修改均为增量添加，不触碰任何现有推理逻辑。当 `--use_text` 和 `--use_anchor` 均不开启时，系统行为与修改前完全一致。

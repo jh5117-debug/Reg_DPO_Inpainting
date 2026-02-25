@@ -1,0 +1,9 @@
+prompt:
+- A suburban intersection with a bus, several cars, residential brick houses, green
+  trees, utility poles, and traffic lights under a clear blue sky.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T07:59:32.965109'

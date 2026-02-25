@@ -1,0 +1,9 @@
+prompt:
+- A man interacts with a camel in an open enclosure, with other camels and a fenced
+  area visible in the background under a partly cloudy sky.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T07:46:55.711911'

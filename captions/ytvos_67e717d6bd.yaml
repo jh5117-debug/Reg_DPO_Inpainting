@@ -1,0 +1,10 @@
+prompt:
+- A motorcyclist rides along a scenic coastal road, with lush green hills, wooden
+  fences, and the ocean in the background, viewed from the rider's perspective through
+  the motorcycle's dashboard.
+n_prompt:
+- blurry, flickering, distorted, artifacts, text, watermark, low quality
+text_guidance_scale: 2.0
+prompt_source: auto_ytvos
+prompt_model: Qwen2.5-VL-7B-Instruct
+prompt_timestamp: '2026-02-22T08:09:01.579136'
