@@ -109,11 +109,9 @@ ls -la dataset/DAVIS dataset/YTBV weights captions/all_captions_merged.yaml
 第五步：安装 Python 依赖（两个版本共用同一环境）
 ================================================================
 
-conda create -n diffueraser python=3.10 -y
-conda activate diffueraser
-
 cd ~/DiffuEraser_finetune
-pip install -r requirements.txt
+conda env create -f environment.yml
+conda activate diffueraser
 
 ================================================================
 第六步：配置 Accelerate（多卡训练）
