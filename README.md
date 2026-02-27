@@ -1,7 +1,5 @@
-
 ## 📖 YTBV Finetune 合作者完整操作指南
 
-<details>
 <summary>📋 点击展开完整指南</summary>
 
 ```
