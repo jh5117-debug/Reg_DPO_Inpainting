@@ -21,6 +21,9 @@ HuggingFace 仓库：
 pip install -U huggingface_hub
 huggingface-cli login
 
+⚠️ 重要：你需要一个 HuggingFace Token (在 https://huggingface.co/settings/tokens 创建)。
+   该 Token 将在第七步中填入 run_finetune_all.sbatch 文件。
+
 ================================================================
 第二步：下载所有文件（一次性全部下载）
 ================================================================
@@ -133,11 +136,16 @@ cd ~/DiffuEraser_finetune
 PROJECT_DIR=$(pwd)
 WEIGHTS_DIR="${PROJECT_DIR}/weights"
 
-for f in finetune_stage1.sh finetune_stage2.sh run_finetune_all.sbatch save_checkpoint_stage1.py save_checkpoint_stage2.py; do
+for f in finetune_stage1.sh finetune_stage2.sh run_finetune_all.sbatch \
+         save_checkpoint_stage1.py save_checkpoint_stage2.py \
+         train_DiffuEraser_stage1.py train_DiffuEraser_stage2.py; do
     sed -i "s|/home/hj/Train_Diffueraser|${PROJECT_DIR}|g" $f
     sed -i "s|/home/hj/DiffuEraser_new/weights|${WEIGHTS_DIR}|g" $f
     echo "Fixed: $f"
 done
+
+然后，将你的 HuggingFace Token 填入 sbatch 文件：
+sed -i 's|hf_xxxxxxxxxxxxxxxxx|你的HF_Token|g' run_finetune_all.sbatch
 
 7-B) Prompt 版路径替换
 ----------------------------------------------------------------
@@ -146,12 +154,17 @@ cd ~/DiffuEraser_finetune_prompt
 PROJECT_DIR=$(pwd)
 WEIGHTS_DIR="${PROJECT_DIR}/weights"
 
-for f in finetune_stage1.sh finetune_stage2.sh run_finetune_all.sbatch save_checkpoint_stage1.py save_checkpoint_stage2.py; do
+for f in finetune_stage1.sh finetune_stage2.sh run_finetune_all.sbatch \
+         save_checkpoint_stage1.py save_checkpoint_stage2.py \
+         train_DiffuEraser_stage1.py train_DiffuEraser_stage2.py; do
     sed -i "s|/home/hj/Train_Diffueraser_prompt|${PROJECT_DIR}|g" $f
     sed -i "s|/home/hj/Train_Diffueraser/dataset|${PROJECT_DIR}/dataset|g" $f
     sed -i "s|/home/hj/DiffuEraser_new/weights|${WEIGHTS_DIR}|g" $f
     echo "Fixed: $f"
 done
+
+然后，将你的 HuggingFace Token 填入 sbatch 文件：
+sed -i 's|hf_xxxxxxxxxxxxxxxxx|你的HF_Token|g' run_finetune_all.sbatch
 
 ================================================================
 第八步：开始训练（选择你要运行的版本）
