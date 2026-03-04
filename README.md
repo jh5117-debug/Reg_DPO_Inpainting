@@ -275,8 +275,8 @@ TRAIN_MODE="nonprompt"                        # <-- 必填
 # 3. 项目根目录
 PROJECT_HOME="${PROJECT_HOME:-$HOME/project}"  # <-- 按需修改
 
-# 4. GPU 数量 (根据你的集群配置修改)
-NUM_GPUS=8                                    # <-- 按需修改
+# 4. GPU 数量 (根据你的集群配置修改，也可命令行传入: bash 02_train.sbatch 1)
+NUM_GPUS=${1:-8}                              # <-- 按需修改
 ############################################################
 
 echo "============================================"
@@ -294,13 +294,6 @@ export CUDA_DEVICE_ORDER=PCI_BUS_ID
 # ── 激活环境 ──────────────────────────────────────────
 source ~/.bashrc
 conda activate diffueraser 2>/dev/null || source activate diffueraser
-
-# ── 根据 GPU 数量自动选择 accelerate 启动方式 ─────────
-if [ "$NUM_GPUS" -gt 1 ]; then
-  LAUNCH_ARGS="--multi_gpu --num_processes $NUM_GPUS"
-else
-  LAUNCH_ARGS="--num_processes 1"
-fi
 
 # ── 确定工作目录 ──────────────────────────────────────
 if [ "$TRAIN_MODE" = "prompt" ]; then
@@ -359,7 +352,9 @@ echo "========================================================"
 echo "[TRAIN] Stage 1 Training ($JOB_TAG)..."
 echo "========================================================"
 
-accelerate launch $LAUNCH_ARGS \
+accelerate launch \
+  --multi_gpu \
+  --num_processes $NUM_GPUS \
   --mixed_precision bf16 \
   train_DiffuEraser_stage1.py \
   --base_model_name_or_path="${WEIGHTS}/stable-diffusion-v1-5" \
@@ -415,7 +410,9 @@ echo "========================================================"
 
 FINETUNED_STAGE1="$WORK_DIR/converted_weights/finetuned-stage1"
 
-accelerate launch $LAUNCH_ARGS \
+accelerate launch \
+  --multi_gpu \
+  --num_processes $NUM_GPUS \
   --mixed_precision fp16 \
   train_DiffuEraser_stage2.py \
   --base_model_name_or_path="${WEIGHTS}/stable-diffusion-v1-5" \
