@@ -469,7 +469,9 @@ echo "============================================"
 提交方式（`01_setup.sbatch` 成功完成后）：
 
 ```bash
-sbatch 02_train.sbatch
+sbatch 02_train.sbatch          # 默认 8 卡训练
+sbatch 02_train.sbatch 1        # 1 卡调试
+sbatch 02_train.sbatch 4        # 4 卡训练
 ```
 
 查看日志：`tail -f logs/train-*.out`
@@ -633,6 +635,6 @@ huggingface-cli download JiaHuang01/DPO-dataset \
 修改 `02_train.sbatch` 第 3 行：`#SBATCH --partition=你的partition名`
 
 **Q7: 没有 8 张 GPU 怎么办？/ 如何单卡调试？**
-修改 `02_train.sbatch` 中的 `NUM_GPUS=1`（脚本会自动切换单卡/多卡模式）。如果通过 SLURM 提交，同时修改 `#SBATCH --gres=gpu:N`。
+直接传参：`sbatch 02_train.sbatch 1`（脚本第 4 项配置 `NUM_GPUS=${1:-8}` 会自动接收）。如 SLURM 要求 GPU 资源匹配，同时加 `--gres=gpu:1`：`sbatch --gres=gpu:1 02_train.sbatch 1`。
 
 </details>
