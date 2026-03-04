@@ -350,7 +350,7 @@ echo "[TRAIN] Stage 2 权重转换完成: converted_weights/finetuned-stage2/"
 
 ```bash
 sbatch 02_train_stage2.sbatch                            # 默认 1 卡测试
-sbatch --gres=gpu:4 02_train_stage2.sbatch 8             # 8 卡正式训练
+sbatch --gres=gpu:8 02_train_stage2.sbatch 8             # 8 卡正式训练
 ```
 
 查看日志：`tail -f logs/train-stage2-*.out`
