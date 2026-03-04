@@ -295,6 +295,13 @@ export CUDA_DEVICE_ORDER=PCI_BUS_ID
 source ~/.bashrc
 conda activate diffueraser 2>/dev/null || source activate diffueraser
 
+# ── 根据 GPU 数量自动选择 accelerate 启动方式 ─────────
+if [ "$NUM_GPUS" -gt 1 ]; then
+  LAUNCH_ARGS="--multi_gpu --num_processes $NUM_GPUS"
+else
+  LAUNCH_ARGS="--num_processes 1"
+fi
+
 # ── 确定工作目录 ──────────────────────────────────────
 if [ "$TRAIN_MODE" = "prompt" ]; then
   WORK_DIR="$PROJECT_HOME/DiffuEraser_finetune_prompt"
@@ -352,9 +359,7 @@ echo "========================================================"
 echo "[TRAIN] Stage 1 Training ($JOB_TAG)..."
 echo "========================================================"
 
-accelerate launch \
-  --multi_gpu \
-  --num_processes $NUM_GPUS \
+accelerate launch $LAUNCH_ARGS \
   --mixed_precision bf16 \
   train_DiffuEraser_stage1.py \
   --base_model_name_or_path="${WEIGHTS}/stable-diffusion-v1-5" \
@@ -410,9 +415,7 @@ echo "========================================================"
 
 FINETUNED_STAGE1="$WORK_DIR/converted_weights/finetuned-stage1"
 
-accelerate launch \
-  --multi_gpu \
-  --num_processes $NUM_GPUS \
+accelerate launch $LAUNCH_ARGS \
   --mixed_precision fp16 \
   train_DiffuEraser_stage2.py \
   --base_model_name_or_path="${WEIGHTS}/stable-diffusion-v1-5" \
@@ -632,7 +635,7 @@ huggingface-cli download JiaHuang01/DPO-dataset \
 **Q6: GPU partition 名不是 `gpu` 怎么办？**
 修改 `02_train.sbatch` 第 3 行：`#SBATCH --partition=你的partition名`
 
-**Q7: 没有 8 张 GPU 怎么办？**
-修改 `02_train.sbatch` 中的 `NUM_GPUS` 和 `#SBATCH --gres=gpu:N` (两处都要改)
+**Q7: 没有 8 张 GPU 怎么办？/ 如何单卡调试？**
+修改 `02_train.sbatch` 中的 `NUM_GPUS=1`（脚本会自动切换单卡/多卡模式）。如果通过 SLURM 提交，同时修改 `#SBATCH --gres=gpu:N`。
 
 </details>
