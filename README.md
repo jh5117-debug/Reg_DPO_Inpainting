@@ -139,7 +139,7 @@ mkdir -p ~/.cache/huggingface/accelerate
 cat > ~/.cache/huggingface/accelerate/default_config.yaml << 'ACCEL_EOF'
 compute_environment: LOCAL_MACHINE
 debug: false
-distributed_type: MULTI_GPU
+distributed_type: GPU
 downcast_bf16: 'no'
 machine_rank: 0
 main_training_function: main
@@ -192,31 +192,32 @@ sbatch 01_setup.sbatch
 
 set -e
 
-# ── 环境变量 ──
 export HF_TOKEN
 export HUGGINGFACE_HUB_TOKEN="$HF_TOKEN"
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 
-WORK_DIR="${PROJECT_HOME}/dev"
+# ✅ 关键：真实工作目录
+WORK_DIR="${PROJECT_HOME}/dev/DiffuEraser_finetune"
 WEIGHTS="${WORK_DIR}/weights"
 DAVIS="${WORK_DIR}/dataset/DAVIS"
 NUM_GPUS=${1:-1}
 
-# ── 激活环境 ──
 source ~/.bashrc
 conda activate diffueraser
 
 cd "$WORK_DIR"
 
-# ── 运行训练 ──
 validation_image="['${DAVIS}/JPEGImages/480p/bear','${DAVIS}/JPEGImages/480p/boat']"
 validation_mask="['${DAVIS}/Annotations/480p/bear','${DAVIS}/Annotations/480p/boat']"
 validation_prompt="['clean background','clean background']"
 
-accelerate launch \
-  --multi_gpu \
-  --num_processes $NUM_GPUS \
-  --mixed_precision bf16 \
+# ✅ 单卡不启用 multi_gpu；多卡（>=2）才启用
+LAUNCH_ARGS="--num_processes ${NUM_GPUS} --mixed_precision bf16"
+if [ "${NUM_GPUS}" -ge 2 ]; then
+  LAUNCH_ARGS="--multi_gpu ${LAUNCH_ARGS}"
+fi
+
+accelerate launch ${LAUNCH_ARGS} \
   train_DiffuEraser_stage1.py \
   --base_model_name_or_path="${WEIGHTS}/stable-diffusion-v1-5" \
   --pretrained_stage1_path="${WEIGHTS}/diffuEraser" \
@@ -283,32 +284,31 @@ sbatch --gres=gpu:8 02_train_stage1.sbatch 8             # 8 卡正式训练
 
 set -e
 
-# ── 环境变量 ──
 export HF_TOKEN
 export HUGGINGFACE_HUB_TOKEN="$HF_TOKEN"
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 
-WORK_DIR="${PROJECT_HOME}/dev"
+WORK_DIR="${PROJECT_HOME}/dev/DiffuEraser_finetune"
 WEIGHTS="${WORK_DIR}/weights"
 DAVIS="${WORK_DIR}/dataset/DAVIS"
 NUM_GPUS=${1:-1}
 
-# ── 激活环境 ──
 source ~/.bashrc
 conda activate diffueraser
 
 cd "$WORK_DIR"
 
-# ── 运行训练 ──
 FINETUNED_STAGE1="${WORK_DIR}/converted_weights/finetuned-stage1"
 validation_image="['${DAVIS}/JPEGImages/480p/bear','${DAVIS}/JPEGImages/480p/boat']"
 validation_mask="['${DAVIS}/Annotations/480p/bear','${DAVIS}/Annotations/480p/boat']"
 validation_prompt="['clean background','clean background']"
 
-accelerate launch \
-  --multi_gpu \
-  --num_processes $NUM_GPUS \
-  --mixed_precision fp16 \
+LAUNCH_ARGS="--num_processes ${NUM_GPUS} --mixed_precision fp16"
+if [ "${NUM_GPUS}" -ge 2 ]; then
+  LAUNCH_ARGS="--multi_gpu ${LAUNCH_ARGS}"
+fi
+
+accelerate launch ${LAUNCH_ARGS} \
   train_DiffuEraser_stage2.py \
   --base_model_name_or_path="${WEIGHTS}/stable-diffusion-v1-5" \
   --pretrained_stage1="${FINETUNED_STAGE1}" \
@@ -334,7 +334,6 @@ accelerate launch \
 
 echo "[TRAIN] Stage 2 完成"
 
-# ── 转换权重 ──
 LATEST_CKPT_S2=$(ls -d finetune-stage2/checkpoint-* | sort -V | tail -n 1)
 CKPT_NAME_S2=$(basename "$LATEST_CKPT_S2")
 
