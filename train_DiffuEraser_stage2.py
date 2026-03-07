@@ -104,6 +104,12 @@ def log_validation(
     image_logs = []
     inference_ctx = contextlib.nullcontext() if is_final_validation else torch.autocast("cuda")
 
+    # --- Validation metrics ---
+    from validation_metrics import compute_validation_metrics, compute_batch_metrics, format_metrics_table
+    all_pred_frames = []
+    all_gt_frames = []
+    video_names = []
+
     ################ image & mask ################
     file_client = FileClient('disk')
     validation_index = 1
@@ -154,10 +160,48 @@ def log_validation(
                 guidance_scale=0.0
             ).frames
 
-        save_videos_grid(images, f"{args.logging_dir}/samples/sample-{step}/{validation_index}.gif")
+        gif_path = f"{args.logging_dir}/samples/sample-{step}/{validation_index}.gif"
+        save_videos_grid(images, gif_path)
+
+        # --- Collect frames for metrics ---
+        video_name = os.path.basename(validation_image)
+        video_names.append(video_name)
+        pred_np = [np.array(img, dtype=np.uint8) for img in images]
+        gt_np = [np.array(img.resize((pred_np[0].shape[1], pred_np[0].shape[0]), Image.BILINEAR), dtype=np.uint8) for img in frames[:len(pred_np)]]
+        all_pred_frames.append(pred_np)
+        all_gt_frames.append(gt_np)
+
+        # --- Upload validation video to W&B ---
+        if is_wandb_available() and accelerator.is_main_process:
+            try:
+                wandb.log({
+                    f"val/video_{video_name}": wandb.Video(gif_path, fps=8, format="gif"),
+                }, step=step)
+            except Exception as e:
+                logger.warning(f"Failed to log video to W&B: {e}")
 
         validation_index = validation_index + 1
         ##########################################
+
+    # --- Compute and log validation metrics ---
+    if all_pred_frames and all_gt_frames:
+        try:
+            batch_results = compute_batch_metrics(all_pred_frames, all_gt_frames, video_names)
+            table_str = format_metrics_table(batch_results, step)
+            logger.info(table_str)
+
+            if is_wandb_available() and accelerator.is_main_process:
+                wandb.log({
+                    "val/psnr": batch_results["psnr_mean"],
+                    "val/ssim": batch_results["ssim_mean"],
+                }, step=step)
+                for r in batch_results["per_video"]:
+                    wandb.log({
+                        f"val/psnr_{r['video_name']}": r["psnr"],
+                        f"val/ssim_{r['video_name']}": r["ssim"],
+                    }, step=step)
+        except Exception as e:
+            logger.warning(f"Failed to compute validation metrics: {e}")
 
     del pipeline
     gc.collect()
