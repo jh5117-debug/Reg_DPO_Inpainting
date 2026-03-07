@@ -247,7 +247,7 @@ def read_video(validation_image, video_length, nframes, max_img_size):
 class DiffuEraser:
     def __init__(
             self, device, base_model_path, vae_path, diffueraser_path, revision=None,
-            ckpt="2-Step", mode="sd15", loaded=None, pcm_weights_path="weights/PCM_Weights"):
+            ckpt="4-Step", mode="sd15", loaded=None, pcm_weights_path="weights/PCM_Weights"):
         self.device = device
         self.pcm_weights_path = pcm_weights_path
 
@@ -536,7 +536,15 @@ class DiffuEraser:
         torch.cuda.empty_cache()
 
         binary_masks = validation_masks_input_ori
-        # NOTE: blended GaussianBlur removed — hard binary mask gives best PSNR/SSIM
+        if blended:
+            # Gaussian blur for feathered mask edge blending (OR-style)
+            mask_blurreds = []
+            for i in range(len(binary_masks)):
+                mask_blurred = cv2.GaussianBlur(np.array(binary_masks[i]), (21, 21), 0)/255.
+                binary_mask = 1-(1-np.array(binary_masks[i])/255.) * (1-mask_blurred)
+                mask_blurreds.append(Image.fromarray((binary_mask*255).astype(np.uint8)))
+            binary_masks = mask_blurreds
+        # else: use hard binary mask (best for PSNR/SSIM metrics)
         
         comp_frames = []
         for i in range(len(images)):

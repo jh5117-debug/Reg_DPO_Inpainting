@@ -33,6 +33,7 @@ logging.getLogger("transformers.modeling_utils").setLevel(logging.ERROR)
 logging.getLogger("diffusers.models.modeling_utils").setLevel(logging.ERROR)
 
 import argparse
+import json
 import yaml
 from pathlib import Path
 from time import time
@@ -322,6 +323,158 @@ def create_comparison_video_from_frames(in_frames, mask_frames, pp_frames, de_fr
     print(f"  [Comparison] Saved 4-in-1 video: {output_path}")
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+#  VBench Evaluation (ported from run_OR.py)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def init_vbench(args, device):
+    """初始化 VBench 子模块（只调用一次）。返回 (dimensions, submodules_dict) 或 None。"""
+    import importlib
+    from vbench.utils import init_submodules
+
+    dimensions = list(args.vbench_dimensions)
+
+    if not args.use_text and "overall_consistency" in dimensions:
+        print("  [VBench] Skipping 'overall_consistency' (requires --use_text)")
+        dimensions = [d for d in dimensions if d != "overall_consistency"]
+
+    if not dimensions:
+        print("  [VBench] No dimensions to evaluate.")
+        return None
+
+    print(f"\n[VBench] Initializing {len(dimensions)} dimension(s): {', '.join(dimensions)}")
+    submodules_dict = init_submodules(dimensions, local=False, read_frame=False)
+    print("[VBench] Models ready.\n")
+    return {"dimensions": dimensions, "submodules": submodules_dict}
+
+
+def evaluate_single_video_vbench(vbench_ctx, name, pp_video_path, de_video_path, save_dir, device):
+    """对单个视频的 ProPainter + DiffuEraser 输出运行 VBench，返回 per-video 分数 dict。"""
+    import importlib
+    import contextlib, io, logging as _logging
+    from vbench.utils import save_json
+
+    dimensions = vbench_ctx["dimensions"]
+    submodules_dict = vbench_ctx["submodules"]
+
+    row_result = {"name": name, "propainter": {}, "diffueraser": {}}
+
+    for method, video_path in [("propainter", pp_video_path), ("diffueraser", de_video_path)]:
+        if not video_path or not os.path.exists(video_path):
+            continue
+
+        info_list = [{
+            "prompt_en": name,
+            "dimension": dimensions,
+            "video_list": [video_path],
+        }]
+        info_path = os.path.join(save_dir, f"_vbench_{method}_info.json")
+        save_json(info_list, info_path)
+
+        for dim in dimensions:
+            try:
+                dim_module = importlib.import_module(f"vbench.{dim}")
+                compute_fn = getattr(dim_module, f"compute_{dim}")
+                _prev_level = _logging.root.level
+                _logging.disable(_logging.CRITICAL)
+                with contextlib.redirect_stdout(io.StringIO()), \
+                     contextlib.redirect_stderr(io.StringIO()):
+                    avg_score, _ = compute_fn(info_path, device, submodules_dict[dim])
+                _logging.disable(_prev_level)
+                score = float(avg_score) if not isinstance(avg_score, bool) else (1.0 if avg_score else 0.0)
+                row_result[method][dim] = score
+            except Exception as e:
+                _logging.disable(_logging.NOTSET)
+                print(f"    [VBench] {method}/{dim} error: {e}")
+                row_result[method][dim] = -1.0
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+        try:
+            os.remove(info_path)
+        except OSError:
+            pass
+
+    # Print per-video comparison table
+    valid_dims = [d for d in dimensions
+                  if row_result["propainter"].get(d, -1.0) >= 0
+                  or row_result["diffueraser"].get(d, -1.0) >= 0]
+    if valid_dims:
+        print(f"  ┌─ VBench [{name}] {'─' * max(0, 42 - len(name))}┐")
+        print(f"  │ {'Dimension':<26s} {'PP':>8s} {'DE':>8s} {'Δ':>8s} │")
+        print(f"  │ {'─' * 52} │")
+        for dim in valid_dims:
+            pp = row_result["propainter"].get(dim, -1.0)
+            de = row_result["diffueraser"].get(dim, -1.0)
+            pp_s = f"{pp:.4f}" if pp >= 0 else "  ─"
+            de_s = f"{de:.4f}" if de >= 0 else "  ─"
+            d_s = f"{de - pp:+.4f}" if pp >= 0 and de >= 0 else "  ─"
+            short = dim.replace("_consistency", "_con").replace("_smoothness", "_smo") \
+                       .replace("_flickering", "_flk").replace("_quality", "_q") \
+                       .replace("_degree", "_deg")
+            print(f"  │ {short:<26s} {pp_s:>8s} {de_s:>8s} {d_s:>8s} │")
+        print(f"  └{'─' * 56}┘")
+
+    return row_result
+
+
+def print_vbench_summary(args, vbench_all_results, dimensions):
+    """汇总全部视频的 VBench 分数，打印对比表格并保存 JSON。"""
+    if not vbench_all_results or not dimensions:
+        return
+
+    print(f"\n{'=' * 72}")
+    print(f"  VBench Summary: ProPainter vs DiffuEraser ({len(vbench_all_results)} video(s))")
+    print(f"  {'Dimension':<30s}  {'ProPainter':>12s}  {'DiffuEraser':>12s}  {'Δ (DE-PP)':>10s}")
+    print(f"  {'-' * 68}")
+
+    pp_avgs, de_avgs = [], []
+    serializable = {"propainter": {}, "diffueraser": {}, "per_video": []}
+
+    for dim in dimensions:
+        pp_vals = [r["propainter"].get(dim, -1.0) for r in vbench_all_results if r["propainter"].get(dim, -1.0) >= 0]
+        de_vals = [r["diffueraser"].get(dim, -1.0) for r in vbench_all_results if r["diffueraser"].get(dim, -1.0) >= 0]
+
+        pp_mean = sum(pp_vals) / len(pp_vals) if pp_vals else -1.0
+        de_mean = sum(de_vals) / len(de_vals) if de_vals else -1.0
+
+        pp_str = f"{pp_mean:.4f}" if pp_mean >= 0 else "N/A"
+        de_str = f"{de_mean:.4f}" if de_mean >= 0 else "N/A"
+
+        if pp_mean >= 0 and de_mean >= 0:
+            delta_str = f"{de_mean - pp_mean:+.4f}"
+            pp_avgs.append(pp_mean)
+            de_avgs.append(de_mean)
+        else:
+            delta_str = "N/A"
+
+        print(f"  {dim:<30s}  {pp_str:>12s}  {de_str:>12s}  {delta_str:>10s}")
+        serializable["propainter"][dim] = pp_mean
+        serializable["diffueraser"][dim] = de_mean
+
+    if pp_avgs and de_avgs:
+        pp_total = sum(pp_avgs) / len(pp_avgs)
+        de_total = sum(de_avgs) / len(de_avgs)
+        print(f"  {'-' * 68}")
+        print(f"  {'AVERAGE':<30s}  {pp_total:>12.4f}  {de_total:>12.4f}  {de_total - pp_total:>+10.4f}")
+        serializable["average"] = {"propainter": pp_total, "diffueraser": de_total}
+
+    print(f"{'=' * 72}\n")
+
+    for r in vbench_all_results:
+        serializable["per_video"].append({
+            "name": r["name"],
+            "propainter": r["propainter"],
+            "diffueraser": r["diffueraser"],
+        })
+
+    out_path = os.path.join(args.save_path, args.vbench_output)
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(serializable, f, ensure_ascii=False, indent=2)
+    print(f"  [VBench] Results saved to {out_path}")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='davis')
@@ -370,6 +523,19 @@ def main():
     parser.add_argument('--offload_models', action='store_true',
                         help="Offload DiffuEraser to CPU when not in use (saves VRAM)")
 
+    # ========== VBench Evaluation ==========
+    VBENCH_DEFAULT_DIMS = [
+        "subject_consistency", "background_consistency",
+        "temporal_flickering", "motion_smoothness",
+        "aesthetic_quality", "imaging_quality",
+    ]
+    parser.add_argument('--eval_vbench', action='store_true',
+                        help="Enable VBench video quality evaluation after inference")
+    parser.add_argument('--vbench_dimensions', nargs='+', default=VBENCH_DEFAULT_DIMS,
+                        help="VBench dimensions to evaluate")
+    parser.add_argument('--vbench_output', type=str, default='vbench_results.json',
+                        help="Filename for VBench evaluation results")
+
     args = parser.parse_args()
 
     # Handle --no_metrics override
@@ -401,6 +567,8 @@ def main():
 
     if args.offload_models:
         print(f"GPU Offloading: Enabled")
+    if getattr(args, 'eval_vbench', False):
+        print(f"VBench: Enabled")
     print()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -438,6 +606,16 @@ def main():
         print(f"\n[Offload] Enabled. Moving DiffuEraser to CPU (ProPainter stays on GPU).")
         _offload_to_cpu(de, "DiffuEraser")
         print(f"  [{_gpu_mem_info()}]")
+
+    # VBench initialization
+    vbench_ctx = None
+    vbench_all_results = []
+    if getattr(args, 'eval_vbench', False):
+        try:
+            vbench_ctx = init_vbench(args, device)
+        except Exception as e:
+            print(f"[VBench WARN] Init failed: {e}. VBench evaluation disabled.")
+            vbench_ctx = None
 
     # Accumulators
     pp_ori_acts, pp_comp_acts, de_ori_acts, de_comp_acts = [], [], [], []
@@ -646,8 +824,44 @@ def main():
             if de is not None:
                 print_table_row("DiffuEraser", avg(acc_de,'psnr'), avg(acc_de,'ssim'), avg(acc_de,'lpips'),
                               avg(acc_de,'ewarp'), avg(acc_de,'as'), avg(acc_de,'is'), de_vfid)
+            # Save per-video metrics JSON
+            per_video_metrics = {
+                "name": name,
+                "propainter": {k: float(v) for k, v in pp_res.items() if isinstance(v, (int, float)) and not k.endswith('_act')},
+                "diffueraser": {k: float(v) for k, v in de_res.items() if isinstance(v, (int, float)) and not k.endswith('_act')} if de is not None else {},
+            }
+            metrics_json_path = out_dir / "metrics.json"
+            with open(metrics_json_path, "w", encoding="utf-8") as f:
+                json.dump(per_video_metrics, f, ensure_ascii=False, indent=2)
+
         else:
             print(f"  [INFO] {name}: saved (metrics disabled)")
+
+        # VBench per-video evaluation
+        if vbench_ctx:
+            try:
+                pp_video = str(save_root / name / "propainter_comp.mp4") if (save_root / name / "propainter_comp.mp4").exists() else None
+                de_video = str(save_root / name / "diffueraser_comp.mp4") if de is not None and (save_root / name / "diffueraser_comp.mp4").exists() else None
+                # Fallback: use the raw output videos if comp videos don't exist
+                if not pp_video:
+                    pp_raw = save_root / name / "propainter.mp4"
+                    pp_video = str(pp_raw) if pp_raw.exists() else None
+                if not de_video and de is not None:
+                    de_raw = save_root / name / "diffueraser.mp4"
+                    de_video = str(de_raw) if de_raw.exists() else None
+
+                if pp_video or de_video:
+                    vb_row = evaluate_single_video_vbench(
+                        vbench_ctx, name, pp_video, de_video, str(out_dir), device
+                    )
+                    vbench_all_results.append(vb_row)
+
+                    # Append VBench to per-video metrics JSON
+                    vbench_json_path = out_dir / "vbench.json"
+                    with open(vbench_json_path, "w", encoding="utf-8") as f:
+                        json.dump(vb_row, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                print(f"  [VBench] {name} failed: {e}")
 
         print(f"[Progress] {vid_i}/{len(names)} videos completed ({100*vid_i//len(names)}%)")
 
@@ -662,6 +876,15 @@ def main():
             print(f"DiffuEraser: {metrics.compute_final_vfid(de_ori_acts, de_comp_acts):.6f}")
         elif args.skip_diffueraser:
             print("DiffuEraser: (skipped)")
+
+    # VBench Summary
+    if vbench_ctx and vbench_all_results:
+        try:
+            print_vbench_summary(args, vbench_all_results, vbench_ctx["dimensions"])
+        except Exception as e:
+            print(f"\n[VBench ERROR] Summary failed: {e}")
+            import traceback
+            traceback.print_exc()
 
     print("\nDone.")
 

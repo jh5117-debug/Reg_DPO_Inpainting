@@ -8,6 +8,9 @@ weights/
 
 # === 大型数据集（全部是符号链接）===
 data/
+dataset/DAVIS/
+dataset/YTBV/
+dataset/DPO/
 
 # === ProPainter（符号链接）===
 propainter/
@@ -24,6 +27,19 @@ results/
 # === DPO 生成数据 ===
 dpo_data/
 
+# === 训练输出 ===
+finetune-stage1/
+finetune-stage2/
+converted_weights/
+
+# === 训练日志 ===
+logs/
+log/
+logs-finetune-*/
+
+# === W&B ===
+wandb/
+
 # === Python ===
 __pycache__/
 *.pyc
@@ -36,8 +52,8 @@ __pycache__/
 .idea/
 
 # === 大型 PDF ===
-docs/dpo/DiffuEraser.pdf
+*.pdf
 
-# === OS ===
+# === 系统文件 ===
 .DS_Store
 Thumbs.db
