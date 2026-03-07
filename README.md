@@ -1,377 +1,222 @@
 # DiffuEraser Finetune
 
-> 合作者完整操作指南 — 从零开始搭建 DiffuEraser Non-Prompt Finetune 训练环境
+> **Non-Prompt Finetune** for DiffuEraser video inpainting model.
 >
-> **全流程 SLURM 自动化**：环境准备 → 提交 Stage1 → 提交 Stage2
+> 代码托管于 **GitHub**，数据集与权重托管于 **HuggingFace**。
 
 ---
 
-## ⚡ 快速开始（4 步完成）
+## 📂 仓库结构
 
-1. **前置准备** → 设置 `PROJECT_HOME` 和 `HF_TOKEN` 环境变量
-2. **提交解压** → `sbatch 01_setup.sbatch` （下载 + 解压 + 环境安装）
-3. **提交 Stage1** → `sbatch 02_train_stage1.sbatch` （Stage1 训练 + 权重转换）
-4. **提交 Stage2** → `sbatch 02_train_stage2.sbatch` （Stage2 训练 + 权重转换）
-
-> ⚠️ 必须按顺序执行：`01_setup` 完成后提交 `stage1`，`stage1` 完成后提交 `stage2`
-
----
-
-## 📦 HuggingFace 仓库
-
-| # | 仓库 | 内容 | 大小 |
-|---|------|------|------|
-| 1 | `JiaHuang01/DiffuEraser-finetune-code` | 基础代码 + DAVIS/YTBV 数据集 | ~10.1 GB |
-| 2 | `JiaHuang01/DiffuEraser-finetune-weights` | 模型权重 (SD1.5 + DiffuEraser + VAE + MotionAdapter) | ~48.4 GB |
-| 3 | `JiaHuang01/DPO-dataset` | DPO 训练数据 (60 DAVIS + 1964 YTBV 视频对) | ~84 GB |
-
-> [!NOTE]
-> 仓库 3 (`DPO-dataset`) 为后续 DPO 训练保留，当前 finetune 流程不使用。
-
----
-
-## 📖 详细操作指南
-
-### 第零步：前置准备
-
-**必须完成以下 3 项设置：**
-
-```bash
-# 1. 安装 HuggingFace CLI
-pip install -U huggingface_hub
-
-# 2. 登录 HuggingFace
-huggingface-cli login
+```
+DiffuEraser_finetune/
+├── train_DiffuEraser_stage1.py     # Stage 1 训练 (UNet2D + BrushNet)
+├── train_DiffuEraser_stage2.py     # Stage 2 训练 (Motion Modules)
+├── run_train_stage1.py             # Stage 1 训练入口
+├── run_train_stage2.py             # Stage 2 训练入口
+├── run_train_all.py                # 一键 Stage 1+2 训练入口
+├── convert_checkpoint.py           # 手动权重转换 (accelerator → safetensors)
+├── validation_metrics.py           # 验证指标 (PSNR/SSIM)
+├── 02_train_stage1.sbatch          # SLURM - Stage 1
+├── 02_train_stage2.sbatch          # SLURM - Stage 2
+├── 02_train_all.sbatch             # SLURM - 一键训练
+├── environment.yml                 # Conda 环境配置
+├── requirements.txt                # pip 依赖
+├── diffueraser/                    # 模型核心 (pipeline, metrics)
+├── libs/                           # 自定义 UNet/BrushNet/MotionAdapter
+├── dataset/                        # 数据加载模块 (finetune_dataset.py 等)
+├── inference/                      # 推理 & 评估
+├── data/                           # (gitignored) DAVIS/YTBV eval 数据
+└── weights/                        # (gitignored) 预训练权重
 ```
 
-> ⚠️ **HuggingFace Token**：在 https://huggingface.co/settings/tokens 创建一个 Token（Read 权限即可）.
-> 将 Token 设置为环境变量：`export HF_TOKEN="hf_xxxxxxxxxxxxxxxxx"` （建议添加到 `~/.bashrc`）
+---
+
+## ⚡ 快速开始
+
+### 1. 环境变量配置
+
+在 `~/.bashrc` 中添加以下 **3 个环境变量**：
 
 ```bash
-# 3. 设置 PROJECT_HOME 环境变量（所有资源都放在这个目录下）
 export PROJECT_HOME="/sc-projects/sc-proj-cc09-repair/hongyou"
+export HF_TOKEN="hf_xxxxxxxxxxxxxxxxx"
+export WANDB_API_KEY="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
-> 💡 **建议**：将 `export PROJECT_HOME=...` 添加到 `~/.bashrc` 中，避免每次重新设置。
+| 变量 | 说明 |
+|------|------|
+| `PROJECT_HOME` | 合作者根路径，代码位于 `$PROJECT_HOME/dev/DiffuEraser_finetune/` |
+| `HF_TOKEN` | HuggingFace 下载凭证（[创建 Token](https://huggingface.co/settings/tokens)） |
+| `WANDB_API_KEY` | Weights & Biases 远程监控 Key（[获取 Key](https://wandb.ai/authorize)） |
 
----
-
-### 第一步：创建并提交解压脚本 (`01_setup.sbatch`)
-
-将以下内容保存为 `01_setup.sbatch`，确保已设置 `PROJECT_HOME` 和 `HF_TOKEN` 环境变量后直接提交：
+### 2. Clone 代码
 
 ```bash
-#!/bin/bash
-#SBATCH --job-name=DiffuEraser_Setup
-#SBATCH --partition=compute
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=32G
-#SBATCH --time=04:00:00
-#SBATCH --output=logs/setup-%j.out
+cd ${PROJECT_HOME}/dev/DiffuEraser_finetune
 
-set -e
+# 清理旧代码文件（保留数据集和权重）
+find . -maxdepth 1 \
+  ! -name 'dataset' ! -name 'weights' ! -name 'data' \
+  ! -name 'finetune-stage1' ! -name 'finetune-stage2' \
+  ! -name '.' -exec rm -rf {} +
 
-export HF_TOKEN
-export HUGGINGFACE_HUB_TOKEN="$HF_TOKEN"
-
-echo "============================================"
-echo "[SETUP] Job ID: $SLURM_JOB_ID"
-echo "[SETUP] Node: $(hostname)"
-echo "[SETUP] PROJECT_HOME: $PROJECT_HOME"
-echo "============================================"
-
-# ── 1. 下载 HuggingFace 数据 ──────────────────────────
-DOWNLOADS="$PROJECT_HOME/DiffuEraser_downloads"
-mkdir -p "$DOWNLOADS"
-
-echo "[SETUP] ===== [1/2] 下载基础代码 + 数据集 ====="
-huggingface-cli download JiaHuang01/DiffuEraser-finetune-code \
-    --repo-type dataset \
-    --local-dir "$DOWNLOADS/finetune-code"
-
-
-echo "[SETUP] ===== [2/2] 下载模型权重 ====="
-huggingface-cli download JiaHuang01/DiffuEraser-finetune-weights \
-    --repo-type dataset \
-    --local-dir "$DOWNLOADS/finetune-weights"
-
-echo "[SETUP] 下载完成！"
-
-# ── 2. 搭建工作目录 ───────────────────────────────────
-WORK_ROOT="${PROJECT_HOME}/dev"
-WORK_DIR="${WORK_ROOT}/DiffuEraser_finetune"
-echo "[SETUP] 搭建工作目录: $WORK_DIR"
-mkdir -p "$WORK_DIR"
-
-cp "$DOWNLOADS/finetune-code/code_base.tar.gz" "$WORK_DIR/"
-cp "$DOWNLOADS/finetune-code/DAVIS.tar"         "$WORK_DIR/"
-cp "$DOWNLOADS/finetune-code/YTBV.tar"          "$WORK_DIR/"
-cp "$DOWNLOADS/finetune-code/environment.yml"   "$WORK_DIR/"
-cp "$DOWNLOADS/finetune-code/setup_project.sh"  "$WORK_DIR/"
-
-mkdir -p "$WORK_DIR/weights"
-cp -r "$DOWNLOADS/finetune-weights/"* "$WORK_DIR/weights/"
-
-cd "$WORK_DIR"
-bash setup_project.sh
-mkdir -p logs converted_weights
-
-echo "[SETUP] 工作目录搭建完成 ✅"
-
-# ── 3. 安装 Conda 环境 ────────────────────────────────
-echo "[SETUP] 安装 Conda 环境..."
-source ~/.bashrc
-
-if conda env list 2>/dev/null | grep -q "diffueraser"; then
-  echo "[SETUP] 环境 diffueraser 已存在，跳过安装"
-else
-  cd "$WORK_DIR"
-  conda env create -f environment.yml
-  echo "[SETUP] 环境创建完成 ✅"
-fi
-
-# ── 4. 配置 Accelerate (非交互式) ─────────────────────
-echo "[SETUP] 配置 accelerate..."
-source activate diffueraser 2>/dev/null || conda activate diffueraser
-
-mkdir -p ~/.cache/huggingface/accelerate
-cat > ~/.cache/huggingface/accelerate/default_config.yaml << 'ACCEL_EOF'
-compute_environment: LOCAL_MACHINE
-distributed_type: NO
-mixed_precision: bf16
-num_machines: 1
-num_processes: 1
-use_cpu: false
-ACCEL_EOF
-echo "[SETUP] Accelerate 配置完成 ✅"
-
-echo "============================================"
-echo "[SETUP] 🎉 全部搭建完成！"
-echo "[SETUP] 请检查无误后依次提交训练脚本："
-echo "[SETUP]   sbatch 02_train_stage1.sbatch"
-echo "[SETUP]   sbatch 02_train_stage2.sbatch  (stage1 完成后)"
-echo "============================================"
+# 从 GitHub 拉取最新代码
+git clone https://github.com/jh5117-debug/Reg_DPO_Inpainting.git .
 ```
 
-提交方式：
+### 3. 下载数据集 & 权重（首次搭建）
+
+从 HuggingFace 下载并解压：
 
 ```bash
-mkdir -p logs
-sbatch 01_setup.sbatch
+pip install -U huggingface_hub
+huggingface-cli login --token $HF_TOKEN
+
+# 下载代码 + 数据集
+huggingface-cli download jh5117/DiffuEraser-finetune-code \
+  --local-dir DiffuEraser_downloads --repo-type dataset
+
+# 下载权重
+huggingface-cli download jh5117/DiffuEraser-finetune-weights \
+  --local-dir DiffuEraser_downloads --repo-type dataset
 ```
 
-查看日志：`tail -f logs/setup-*.out`
+> 解压步骤见各 HF 仓库 README，将 DAVIS/YTBV 放入 `dataset/`，权重放入 `weights/`。
 
----
-
-### 第二步：提交 Stage1 训练脚本 (`02_train_stage1.sbatch`)
-
-将以下内容保存为 `02_train_stage1.sbatch`，确保已设置 `PROJECT_HOME` 和 `HF_TOKEN` 环境变量后提交：
+### 4. 安装依赖 & W&B 登录
 
 ```bash
-#!/bin/bash
-#SBATCH --job-name=DiffuEraser_Stage1
-#SBATCH --partition=gpu
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=200G
-#SBATCH --time=48:00:00
-#SBATCH --output=logs/train-stage1-%j.out
-
-set -e
-
-export HF_TOKEN
-export HUGGINGFACE_HUB_TOKEN="$HF_TOKEN"
-export CUDA_DEVICE_ORDER=PCI_BUS_ID
-
-# ✅ 关键：真实工作目录
-WORK_DIR="${PROJECT_HOME}/dev/DiffuEraser_finetune"
-WEIGHTS="${WORK_DIR}/weights"
-DAVIS="${WORK_DIR}/dataset/DAVIS"
-NUM_GPUS=${1:-1}
-
-source ~/.bashrc
 conda activate diffueraser
-
-cd "$WORK_DIR"
-
-validation_image="['${DAVIS}/JPEGImages/480p/bear','${DAVIS}/JPEGImages/480p/boat']"
-validation_mask="['${DAVIS}/Annotations/480p/bear','${DAVIS}/Annotations/480p/boat']"
-validation_prompt="['clean background','clean background']"
-
-# ✅ 单卡不启用 multi_gpu；多卡（>=2）才启用
-LAUNCH_ARGS="--num_processes ${NUM_GPUS} --mixed_precision bf16"
-if [ "${NUM_GPUS}" -ge 2 ]; then
-  LAUNCH_ARGS="--multi_gpu ${LAUNCH_ARGS}"
-fi
-
-accelerate launch ${LAUNCH_ARGS} \
-  train_DiffuEraser_stage1.py \
-  --base_model_name_or_path="${WEIGHTS}/stable-diffusion-v1-5" \
-  --pretrained_stage1_path="${WEIGHTS}/diffuEraser" \
-  --vae_path="${WEIGHTS}/sd-vae-ft-mse" \
-  --davis_root="${WORK_DIR}/dataset/DAVIS" \
-  --ytvos_root="${WORK_DIR}/dataset/YTBV" \
-  --resolution=512 \
-  --nframes=10 \
-  --mixed_precision="fp16" \
-  --train_batch_size=1 \
-  --dataloader_num_workers=2 \
-  --learning_rate=5e-06 \
-  --resume_from_checkpoint="latest" \
-  --validation_steps=2000 \
-  --output_dir="finetune-stage1" \
-  --logging_dir="logs-finetune-stage1" \
-  --validation_image="$validation_image" \
-  --validation_mask="$validation_mask" \
-  --validation_prompt="$validation_prompt" \
-  --checkpointing_steps=2000 \
-  --gradient_checkpointing \
-  --max_train_steps=50000
-
-echo "[TRAIN] Stage 1 完成"
-
-# ── 转换权重 ──
-LATEST_CKPT=$(ls -d finetune-stage1/checkpoint-* | sort -V | tail -n 1)
-CKPT_NAME=$(basename "$LATEST_CKPT")
-
-cp save_checkpoint_stage1.py save_checkpoint_stage1_temp.py
-sed -i "s|checkpoint-xxxx|$CKPT_NAME|g" save_checkpoint_stage1_temp.py
-python save_checkpoint_stage1_temp.py
-rm save_checkpoint_stage1_temp.py
-
-echo "[TRAIN] Stage 1 权重转换完成: converted_weights/finetuned-stage1/"
+pip install wandb weave
+wandb login
 ```
 
-提交方式（`01_setup.sbatch` 成功完成后）：
+### 5. 一键训练（推荐 🚀）
 
 ```bash
-sbatch 02_train_stage1.sbatch                            # 默认 1 卡测试
-sbatch --gres=gpu:8 02_train_stage1.sbatch 8             # 8 卡正式训练
+sbatch 02_train_all.sbatch
 ```
 
-查看日志：`tail -f logs/train-stage1-*.out`
+Stage 1 完成后**自动衔接** Stage 2，权重**自动转换**，训练曲线**实时上传** W&B。
+
+### 6. 或者分开训练
+
+```bash
+sbatch 02_train_stage1.sbatch
+# 等 Stage 1 完成后...
+sbatch 02_train_stage2.sbatch
+```
 
 ---
 
-### 第三步：提交 Stage2 训练脚本 (`02_train_stage2.sbatch`)
+## 🏗️ 训练架构
 
-**等待 Stage1 完成后**，将以下内容保存为 `02_train_stage2.sbatch` 并提交：
+### Stage 1: BrushNet + UNet2D 微调
 
-```bash
-#!/bin/bash
-#SBATCH --job-name=DiffuEraser_Stage2
-#SBATCH --partition=gpu
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=200G
-#SBATCH --time=48:00:00
-#SBATCH --output=logs/train-stage2-%j.out
+| 组件 | 状态 |
+|------|------|
+| UNet2D (SD1.5 unet) | ✅ **训练** |
+| BrushNet (diffuEraser) | ✅ **训练** |
+| VAE (sd-vae-ft-mse) | ❄️ 冻结 |
+| Text Encoder (CLIP) | ❄️ 冻结 |
 
-set -e
+- **输入**: DAVIS + YTBV 视频帧 (默认 nframes=10)
+- **输出**: `finetune-stage1/converted_weights/{unet_main, brushnet}/`
 
-export HF_TOKEN
-export HUGGINGFACE_HUB_TOKEN="$HF_TOKEN"
-export CUDA_DEVICE_ORDER=PCI_BUS_ID
+### Stage 2: Motion Module 微调
 
-WORK_DIR="${PROJECT_HOME}/dev/DiffuEraser_finetune"
-WEIGHTS="${WORK_DIR}/weights"
-DAVIS="${WORK_DIR}/dataset/DAVIS"
-NUM_GPUS=${1:-1}
+| 组件 | 状态 |
+|------|------|
+| Motion Modules (AnimateDiff) | ✅ **训练** |
+| UNet2D 空间层 (from Stage 1) | ❄️ 冻结 |
+| BrushNet (from Stage 1) | ❄️ 冻结 |
+| VAE | ❄️ 冻结 |
+| Text Encoder | ❄️ 冻结 |
 
-source ~/.bashrc
-conda activate diffueraser
+- **输入**: DAVIS + YTBV 视频帧 (默认 nframes=22)
+- **前置**: Stage 1 转换权重
+- **输出**: `finetune-stage2/converted_weights/{unet_main, brushnet}/`
 
-cd "$WORK_DIR"
+---
 
-FINETUNED_STAGE1="${WORK_DIR}/converted_weights/finetuned-stage1"
-validation_image="['${DAVIS}/JPEGImages/480p/bear','${DAVIS}/JPEGImages/480p/boat']"
-validation_mask="['${DAVIS}/Annotations/480p/bear','${DAVIS}/Annotations/480p/boat']"
-validation_prompt="['clean background','clean background']"
+## 📊 W&B 远程监控
 
-LAUNCH_ARGS="--num_processes ${NUM_GPUS} --mixed_precision fp16"
-if [ "${NUM_GPUS}" -ge 2 ]; then
-  LAUNCH_ARGS="--multi_gpu ${LAUNCH_ARGS}"
-fi
+训练启动后，在 [W&B Dashboard](https://wandb.ai) 实时查看：
 
-accelerate launch ${LAUNCH_ARGS} \
-  train_DiffuEraser_stage2.py \
-  --base_model_name_or_path="${WEIGHTS}/stable-diffusion-v1-5" \
-  --pretrained_stage1="${FINETUNED_STAGE1}" \
-  --vae_path="${WEIGHTS}/sd-vae-ft-mse" \
-  --motion_adapter_path="${WEIGHTS}/animatediff-motion-adapter-v1-5-2" \
-  --davis_root="${WORK_DIR}/dataset/DAVIS" \
-  --ytvos_root="${WORK_DIR}/dataset/YTBV" \
-  --resolution=512 \
-  --nframes=22 \
-  --mixed_precision="fp16" \
-  --train_batch_size=1 \
-  --dataloader_num_workers=2 \
-  --learning_rate=5e-06 \
-  --resume_from_checkpoint="latest" \
-  --validation_steps=2000 \
-  --output_dir="finetune-stage2" \
-  --logging_dir="logs-finetune-stage2" \
-  --validation_image="$validation_image" \
-  --validation_mask="$validation_mask" \
-  --validation_prompt="$validation_prompt" \
-  --checkpointing_steps=2000 \
-  --max_train_steps=50000
+| 指标 | 来源 | 频率 |
+|------|------|------|
+| `train/loss` | `accelerator.log()` | 每 step |
+| `train/lr` | `accelerator.log()` | 每 step |
+| `val/video` | 保存的验证视频 | 每 `validation_steps` |
 
-echo "[TRAIN] Stage 2 完成"
+**W&B Project**: `DPO_Diffueraser`
 
-LATEST_CKPT_S2=$(ls -d finetune-stage2/checkpoint-* | sort -V | tail -n 1)
-CKPT_NAME_S2=$(basename "$LATEST_CKPT_S2")
+> 合作者在 HPC 上训练时所有 log 自动上传至你的 W&B 账户，无需 SSH 即可监控。
 
-cp save_checkpoint_stage2.py save_checkpoint_stage2_temp.py
-sed -i "s|checkpoint-xxxx|$CKPT_NAME_S2|g" save_checkpoint_stage2_temp.py
-python save_checkpoint_stage2_temp.py
-rm save_checkpoint_stage2_temp.py
+---
 
-echo "[TRAIN] Stage 2 权重转换完成: converted_weights/finetuned-stage2/"
-```
+## 🔧 手动权重转换
 
-提交方式（`02_train_stage1.sbatch` 成功完成后）：
+训练结束时权重**自动转换**。如需从历史 checkpoint 手动转换：
 
 ```bash
-sbatch 02_train_stage2.sbatch                            # 默认 1 卡测试
-sbatch --gres=gpu:8 02_train_stage2.sbatch 8             # 8 卡正式训练
-```
+# Stage 1
+python convert_checkpoint.py \
+  --stage 1 \
+  --checkpoint_dir finetune-stage1/checkpoint-50000 \
+  --base_model_path weights/stable-diffusion-v1-5 \
+  --brushnet_path weights/diffuEraser \
+  --output_dir converted_weights/finetuned-stage1
 
-查看日志：`tail -f logs/train-stage2-*.out`
+# Stage 2
+python convert_checkpoint.py \
+  --stage 2 \
+  --checkpoint_dir finetune-stage2/checkpoint-50000 \
+  --base_model_path weights/stable-diffusion-v1-5 \
+  --brushnet_path weights/diffuEraser \
+  --motion_adapter_path weights/animatediff-motion-adapter-v1-5-2 \
+  --pretrained_stage1 converted_weights/finetuned-stage1 \
+  --output_dir converted_weights/finetuned-stage2
+```
 
 ---
 
 ## 🔧 训练参数修改指引
 
-如果需要调整训练参数，**在对应的 stage 脚本中直接修改**：
+参数通过 `run_train_*.py` 的命令行控制：
 
-| 参数 | 含义 | 默认值 | 位置 |
-|------|------|--------|------|
-| `NUM_GPUS` | GPU 数量 | `1` (命令行传参覆盖) | 脚本第一个参数 |
-| `--max_train_steps` | 最大训练步数 | `50000` | `accelerate launch` 命令 |
-| `--learning_rate` | 学习率 | `5e-06` | `accelerate launch` 命令 |
-| `--nframes` | 每次采样帧数 | Stage1: `10`, Stage2: `22` | `accelerate launch` 命令 |
-| `--resolution` | 训练分辨率 | `512` | `accelerate launch` 命令 |
-| `--train_batch_size` | 批大小 | `1` | `accelerate launch` 命令 |
-| `--checkpointing_steps` | 保存间隔 | `2000` | `accelerate launch` 命令 |
-| `--validation_steps` | 验证间隔 | `2000` | `accelerate launch` 命令 |
-| `--gradient_checkpointing` | 梯度检查点 (省显存) | 仅 Stage1 | `accelerate launch` 命令 |
-
-> [!TIP]
-> **显存不足 (CUDA OOM)?** → 添加 `--gradient_checkpointing` 到 Stage 2，或减小 `--nframes` / `--resolution`
+| 参数 | 含义 | 默认值 |
+|------|------|--------|
+| `--num_gpus` | GPU 数量 | `1` |
+| `--max_train_steps` | 最大训练步数 | `50000` |
+| `--learning_rate` | 学习率 | `5e-6` |
+| `--batch_size` | 批大小 | `1` |
+| `--nframes` | 每次采样帧数 | Stage1: `10`, Stage2: `22` |
+| `--checkpointing_steps` | 保存间隔 | `2000` |
+| `--validation_steps` | 验证间隔 | `2000` |
+| `--wandb_project` | W&B 项目名 | `DPO_Diffueraser` |
 
 > [!TIP]
-> **SLURM 时间限制**：默认 `--time=48:00:00`。如训练需要更久，可修改脚本头部的 `#SBATCH --time`
+> **CUDA OOM?** → 减小 `--batch_size`、`--nframes` 或 `--resolution`。训练脚本默认启用 `--gradient_checkpointing`。
 
-> [!IMPORTANT]
-> **GPU Partition 名称**：脚本中默认使用 `--partition=gpu`。如果你的集群 GPU partition 名不同（如 `pgpu`、`v100` 等），请修改 `#SBATCH --partition=` 行。
+---
+
+## 📦 预训练权重目录
+
+```
+weights/
+├── stable-diffusion-v1-5/              # SD1.5 base model
+├── diffuEraser/                        # DiffuEraser BrushNet + UNet
+├── sd-vae-ft-mse/                      # VAE
+└── animatediff-motion-adapter-v1-5-2/  # AnimateDiff MotionAdapter
+```
+
+---
+
+## 🔄 断点续训
+
+所有脚本均默认启用 `--resume_from_checkpoint="latest"`。训练中断后直接重新 `sbatch` 即可从最后 checkpoint 恢复。
 
 ---
 
@@ -381,65 +226,51 @@ sbatch --gres=gpu:8 02_train_stage2.sbatch 8             # 8 卡正式训练
 <summary>附录 A：完成后的目录结构</summary>
 
 ```
-$PROJECT_HOME/
-├── DiffuEraser_downloads/                  ← 下载缓存（搭建完成后可删除）
-│   ├── finetune-code/
-│   └── finetune-weights/
-│
-├── dev/                                    ← 工作目录
-│   ├── train_DiffuEraser_stage1.py
-│   ├── train_DiffuEraser_stage2.py
-│   ├── save_checkpoint_stage1.py
-│   ├── save_checkpoint_stage2.py
-│   ├── environment.yml
-│   ├── libs/
-│   ├── diffueraser/
-│   ├── dataset/
-│   │   ├── DAVIS/                          ← 真实数据 (~844 MB)
-│   │   ├── YTBV/                           ← 真实数据 (~5.26 GB)
-│   │   ├── finetune_dataset.py
-│   │   └── utils.py ...
-│   ├── weights/
-│   │   ├── stable-diffusion-v1-5/
-│   │   ├── diffuEraser/
-│   │   ├── sd-vae-ft-mse/
-│   │   └── animatediff-motion-adapter-v1-5-2/
-│   ├── finetune-stage1/                    ← 训练 checkpoint
-│   ├── finetune-stage2/                    ← 训练 checkpoint
-│   ├── converted_weights/                  ← ⭐ 最终输出权重
-│   │   ├── finetuned-stage1/
-│   │   └── finetuned-stage2/
-│   └── logs/
-│
-└── DPO-dataset/                            ← 🔮 DPO 训练数据 (后续使用)
-    └── ...
+$PROJECT_HOME/dev/DiffuEraser_finetune/
+├── train_DiffuEraser_stage1.py
+├── train_DiffuEraser_stage2.py
+├── run_train_stage1.py
+├── run_train_stage2.py
+├── run_train_all.py
+├── convert_checkpoint.py
+├── validation_metrics.py
+├── 02_train_stage1.sbatch
+├── 02_train_stage2.sbatch
+├── 02_train_all.sbatch
+├── environment.yml
+├── requirements.txt
+├── .gitignore
+├── README.md
+├── diffueraser/
+├── libs/
+├── dataset/
+│   ├── finetune_dataset.py
+│   ├── file_client.py
+│   ├── img_util.py
+│   ├── DAVIS/                          ← (gitignored) 训练数据
+│   └── YTBV/                           ← (gitignored) 训练数据
+├── data/eval/DAVIS/                    ← (gitignored) 验证数据
+├── weights/                            ← (gitignored) 预训练权重
+├── finetune-stage1/                    ← (gitignored) 训练 checkpoint
+├── finetune-stage2/                    ← (gitignored) 训练 checkpoint
+├── inference/
+└── PRD/
 ```
 
 </details>
 
 <details>
-<summary>附录 B：DPO 数据集结构说明</summary>
+<summary>附录 B：DPO 数据集 (后续使用)</summary>
 
-`DPO-dataset` 用于后续 **DPO (Direct Preference Optimization)** 训练，包含通过 DiffuEraser 推理生成的正负样本对：
-
-| 字段 | 说明 |
-|------|------|
-| `gt_frames/` | Ground truth 原始帧 |
-| `masks/` | 对象 mask (标注需要擦除的区域) |
-| `neg_frames_1/` | 负样本 — 最差维度1 (ghosting/hallucination/flicker) |
-| `neg_frames_2/` | 负样本 — 最差维度2 |
-| `meta.json` | 生成元数据：neg 生成方式、chunk 分段、评分 |
-| `comparison.mp4` | 可视化对比视频 |
-
-**统计**：60 DAVIS + 1964 YTBV = **2024 个视频对**
-
-**下载 DPO 数据集** (后续需要时使用):
+DPO 数据集用于后续 DPO (Direct Preference Optimization) 训练：
 
 ```bash
-huggingface-cli download JiaHuang01/DPO-dataset \
+huggingface-cli download jh5117/DPO-dataset \
     --repo-type dataset \
     --local-dir "$PROJECT_HOME/DPO-dataset"
 ```
+
+**统计**: 60 DAVIS + 1964 YTBV = **2024 个视频对**
 
 </details>
 
@@ -447,15 +278,23 @@ huggingface-cli download JiaHuang01/DPO-dataset \
 <summary>附录 C：常见问题</summary>
 
 **Q1: CUDA OOM 怎么办？**
-在对应 stage 脚本中添加或确认 `--gradient_checkpointing`，或减小 `--nframes` / `--resolution`
+减小 `--nframes` / `--batch_size`，训练脚本已默认启用 `--gradient_checkpointing`。
 
 **Q2: 下载缓存可以删除吗？**
-搭建完成后即可安全删除 `$PROJECT_HOME/DiffuEraser_downloads`，节省磁盘空间。
+搭建完成后即可安全删除 `$PROJECT_HOME/DiffuEraser_downloads`。
 
 **Q3: 训练中断了怎么办？**
-脚本已启用 `--resume_from_checkpoint="latest"`，直接重新 `sbatch` 对应的 stage 脚本即可从最后的 checkpoint 恢复。
+脚本已启用 `--resume_from_checkpoint="latest"`，直接重新 `sbatch` 即可恢复。
 
-**Q4: GPU partition 名不是 `gpu` 怎么办？**
-修改对应 stage 脚本中的 `#SBATCH --partition=你的partition名`
+**Q4: GPU partition 名不是 `pgpu` 怎么办？**
+修改 `.sbatch` 文件中的 `#SBATCH --partition=你的partition名`。
 
 </details>
+
+---
+
+## 📎 相关仓库
+
+- **数据集 & 权重**: [HuggingFace](https://huggingface.co/jh5117)
+- **推理代码**: 见 `inference/` 目录
+- **PRD 文档**: 见 `PRD/` 目录
