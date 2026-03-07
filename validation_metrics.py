@@ -3,9 +3,9 @@
 """
 validation_metrics.py  ─  轻量级验证指标 (PSNR / SSIM)
 
-从 inference/compare_all.py + inference/metrics.py 精简而来。
+核心计算逻辑调用 inference/metrics.py 中的 compute_psnr / compute_ssim。
 仅保留纯 CPU/numpy 计算的 PSNR 和 SSIM，适用于训练中 validation step 的定量指标输出。
-不加载任何额外模型 (LPIPS/VBench/RAFT/I3D 等)。
+不加载任何额外 GPU 模型 (LPIPS/VBench/RAFT/I3D 等)。
 
 Usage:
     from validation_metrics import compute_validation_metrics
@@ -13,19 +13,9 @@ Usage:
 """
 
 import numpy as np
-from skimage.metrics import peak_signal_noise_ratio, structural_similarity
 
-
-def calc_psnr(img1: np.ndarray, img2: np.ndarray) -> float:
-    """计算单帧 PSNR (Peak Signal-to-Noise Ratio)。"""
-    return peak_signal_noise_ratio(img1, img2, data_range=255)
-
-
-def calc_ssim(img1: np.ndarray, img2: np.ndarray) -> float:
-    """计算单帧 SSIM (Structural Similarity Index)。"""
-    return structural_similarity(
-        img1, img2, multichannel=True, channel_axis=-1, data_range=255
-    )
+# 核心 PSNR/SSIM 计算来自 inference/metrics.py
+from inference.metrics import compute_psnr, compute_ssim
 
 
 def compute_validation_metrics(
@@ -59,8 +49,8 @@ def compute_validation_metrics(
                 (gt.shape[1], gt.shape[0]), Image.BILINEAR
             ))
 
-        psnr_list.append(calc_psnr(pred, gt))
-        ssim_list.append(calc_ssim(pred, gt))
+        psnr_list.append(compute_psnr(pred, gt))
+        ssim_list.append(compute_ssim(pred, gt))
 
     return {
         "video_name": video_name,
