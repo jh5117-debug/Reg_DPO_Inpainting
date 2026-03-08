@@ -29,7 +29,7 @@ conda activate diffueraser
 
 cd "${PROJECT_HOME}/dev/DiffuEraser_finetune"
 
-python run_train_stage2.py \
+python scripts/run_train_stage2.py \
   --num_gpus ${NUM_GPUS} \
   --batch_size ${BATCH_SIZE} \
   --gradient_accumulation_steps ${GRAD_ACCUM} \

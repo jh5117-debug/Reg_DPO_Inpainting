@@ -41,7 +41,7 @@ conda activate diffueraser
 
 cd "${PROJECT_HOME}/dev/DiffuEraser_finetune"
 
-python run_train_all.py \
+python scripts/run_train_all.py \
   --num_gpus ${NUM_GPUS} \
   --mixed_precision ${MIXED_PRECISION} \
   --seed ${SEED} \
