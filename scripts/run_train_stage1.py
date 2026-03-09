@@ -3,12 +3,12 @@
 """
 run_train_stage1.py — Stage 1 训练入口
 
-从 $PROJECT_HOME 环境变量推导所有路径，调用 accelerate launch 启动训练。
+自动检测项目根目录（scripts/ 的父目录），无需硬编码路径。
 训练完成后权重自动转换 (内嵌在 train_DiffuEraser_stage1.py 末尾)。
 
 Usage:
-    python run_train_stage1.py                # 单卡
-    python run_train_stage1.py --num_gpus 8   # 8 卡
+    python scripts/run_train_stage1.py                # 单卡
+    python scripts/run_train_stage1.py --num_gpus 8   # 8 卡
 """
 
 import argparse
@@ -17,27 +17,35 @@ import subprocess
 import sys
 
 
-def get_project_paths():
-    """从 PROJECT_HOME 环境变量推导项目路径。"""
-    project_home = os.environ.get("PROJECT_HOME")
-    if not project_home:
-        raise EnvironmentError(
-            "请设置 PROJECT_HOME 环境变量，例如:\n"
-            '  export PROJECT_HOME="/sc-projects/sc-proj-cc09-repair/hongyou"'
-        )
+def get_project_root():
+    """自动检测项目根目录 = 本脚本所在目录 (scripts/) 的上一级。"""
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-    work_dir = os.path.join(project_home, "dev", "DiffuEraser_finetune")
+
+def get_project_paths(project_root):
+    """从项目根目录推导所有路径。"""
     return {
-        "work_dir": work_dir,
-        "weights": os.path.join(work_dir, "weights"),
-        "davis": os.path.join(work_dir, "dataset", "DAVIS"),
-        "ytbv": os.path.join(work_dir, "dataset", "YTBV"),
-        "eval_davis": os.path.join(work_dir, "data", "eval", "DAVIS"),
+        "work_dir": project_root,
+        "weights": os.path.join(project_root, "weights"),
+        "davis": os.path.join(project_root, "dataset", "DAVIS"),
+        "ytbv": os.path.join(project_root, "dataset", "YTBV"),
+        "eval_davis": os.path.join(project_root, "data", "eval", "DAVIS"),
     }
 
 
 def build_stage1_cmd(paths, args):
     """组装 Stage 1 训练命令。"""
+    eval_davis = paths["eval_davis"]
+    val_images = [
+        os.path.join(eval_davis, "JPEGImages", "480p", "bear"),
+        os.path.join(eval_davis, "JPEGImages", "480p", "boat"),
+    ]
+    val_masks = [
+        os.path.join(eval_davis, "Annotations", "480p", "bear"),
+        os.path.join(eval_davis, "Annotations", "480p", "boat"),
+    ]
+    val_prompts = ["clean background", "clean background"]
+
     cmd = [
         "accelerate", "launch",
         "--num_processes", str(args.num_gpus),
@@ -68,43 +76,10 @@ def build_stage1_cmd(paths, args):
         "--mixed_precision", args.mixed_precision,
         "--set_grads_to_none",
         "--resume_from_checkpoint", "latest",
-        "--validation_image", str(["bear", "boat"]),
-        "--validation_mask", str(["bear", "boat"]),
-        "--validation_prompt", str(["clean background", "clean background"]),
+        "--validation_image", str(val_images),
+        "--validation_mask", str(val_masks),
+        "--validation_prompt", str(val_prompts),
     ]
-
-    # 替换 validation 路径为基于 eval_davis 的完整路径
-    eval_davis = paths["eval_davis"]
-    val_images = [
-        os.path.join(eval_davis, "JPEGImages", "480p", "bear"),
-        os.path.join(eval_davis, "JPEGImages", "480p", "boat"),
-    ]
-    val_masks = [
-        os.path.join(eval_davis, "Annotations", "480p", "bear"),
-        os.path.join(eval_davis, "Annotations", "480p", "boat"),
-    ]
-    val_prompts = ["clean background", "clean background"]
-
-    # 去掉末尾的占位符 validation 参数，用正确的替代
-    cmd = [c for c in cmd if not any(
-        c.startswith(x) for x in ["['bear'", "['clean"]
-    )]
-    # 移除对应的 flag (已经在列表中)
-    new_cmd = []
-    skip_next = False
-    for i, c in enumerate(cmd):
-        if skip_next:
-            skip_next = False
-            continue
-        if c in ("--validation_image", "--validation_mask", "--validation_prompt"):
-            skip_next = True
-            continue
-        new_cmd.append(c)
-    cmd = new_cmd
-
-    cmd.extend(["--validation_image", str(val_images)])
-    cmd.extend(["--validation_mask", str(val_masks)])
-    cmd.extend(["--validation_prompt", str(val_prompts)])
 
     if args.checkpoints_total_limit:
         cmd.extend(["--checkpoints_total_limit", str(args.checkpoints_total_limit)])
@@ -120,17 +95,18 @@ def run_stage1(args=None):
     if args is None:
         args = parse_args()
 
-    paths = get_project_paths()
+    project_root = get_project_root()
+    paths = get_project_paths(project_root)
     cmd = build_stage1_cmd(paths, args)
 
     print("=" * 60)
     print("  DiffuEraser Stage 1 Training")
     print("=" * 60)
-    print(f"  Work Dir:   {paths['work_dir']}")
-    print(f"  GPUs:       {args.num_gpus}")
-    print(f"  Max Steps:  {args.max_train_steps}")
-    print(f"  Batch Size: {args.batch_size}")
-    print(f"  LR:         {args.learning_rate}")
+    print(f"  Project Root: {project_root}")
+    print(f"  GPUs:         {args.num_gpus}")
+    print(f"  Max Steps:    {args.max_train_steps}")
+    print(f"  Batch Size:   {args.batch_size}")
+    print(f"  LR:           {args.learning_rate}")
     print("=" * 60)
     print(f"\n  Command:\n  {' '.join(cmd[:6])} \\\n    " + " \\\n    ".join(cmd[6:]))
     print()

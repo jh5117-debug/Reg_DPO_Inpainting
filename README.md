@@ -48,32 +48,38 @@ DiffuEraser_finetune/
 
 ### 1. 环境变量配置
 
-在 `~/.bashrc` 中添加以下 **3 个环境变量**：
+在 `~/.bashrc` 中添加：
 
 ```bash
-export PROJECT_HOME="/sc-projects/sc-proj-cc09-repair/hongyou"
 export HF_TOKEN="hf_xxxxxxxxxxxxxxxxx"
 export WANDB_API_KEY="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
 | 变量 | 说明 |
 |------|------|
-| `PROJECT_HOME` | 合作者根路径，代码位于 `$PROJECT_HOME/dev/DiffuEraser_finetune/` |
 | `HF_TOKEN` | HuggingFace 下载凭证（[创建 Token](https://huggingface.co/settings/tokens)） |
 | `WANDB_API_KEY` | Weights & Biases 远程监控 Key（[获取 Key](https://wandb.ai/authorize)） |
 
-### 2. Clone 代码
+### 2. Clone 代码（到已有数据目录）
+
+假设你已经在 `DiffuEraser_finetune/` 下准备好了 `dataset/` 和 `weights/`：
 
 ```bash
-cd ${PROJECT_HOME}/dev/DiffuEraser_finetune
+cd /path/to/DiffuEraser_finetune
 
+# 清理旧代码文件（保留数据集和权重）
 find . -maxdepth 1 \
   ! -name 'dataset' ! -name 'weights' ! -name 'data' \
   ! -name 'finetune-stage1' ! -name 'finetune-stage2' \
-  ! -name '.' -exec rm -rf {} +
+  ! -name 'logs' ! -name '.' -exec rm -rf {} +
 
+# 拉取最新代码（所有脚本会自动检测自身所在目录作为项目根路径）
 git clone https://github.com/jh5117-debug/Reg_DPO_Inpainting.git .
 ```
+
+> [!IMPORTANT]
+> **无需设置 `PROJECT_HOME`** — 所有脚本通过自身文件路径自动检测项目根目录。
+> 只要 `dataset/`、`weights/` 在项目根目录下即可。
 
 ### 3. 下载数据集 & 权重（首次搭建）
 

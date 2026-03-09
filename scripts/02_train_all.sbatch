@@ -39,7 +39,9 @@ S2_NFRAMES=${S2_NFRAMES:-22}
 source ~/.bashrc
 conda activate diffueraser
 
-cd "${PROJECT_HOME}/dev/DiffuEraser_finetune"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_ROOT"
 
 python scripts/run_train_all.py \
   --num_gpus ${NUM_GPUS} \

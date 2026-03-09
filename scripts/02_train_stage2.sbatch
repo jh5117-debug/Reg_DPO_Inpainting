@@ -27,7 +27,9 @@ WANDB_PROJECT=${WANDB_PROJECT:-DPO_Diffueraser}
 source ~/.bashrc
 conda activate diffueraser
 
-cd "${PROJECT_HOME}/dev/DiffuEraser_finetune"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_ROOT"
 
 python scripts/run_train_stage2.py \
   --num_gpus ${NUM_GPUS} \
