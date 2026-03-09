@@ -46,7 +46,7 @@ def build_stage1_cmd(project_root, args):
         "--mixed_precision", args.mixed_precision,
         "train_DiffuEraser_stage1.py",
         "--base_model_name_or_path", os.path.join(weights_dir, "stable-diffusion-v1-5"),
-        "--brushnet_model_name_or_path", os.path.join(weights_dir, "diffuEraser"),
+        "--brushnet_model_name_or_path", os.path.join(weights_dir, "diffuEraser", "brushnet"),
         "--vae_path", os.path.join(weights_dir, "sd-vae-ft-mse"),
         "--output_dir", os.path.join(project_root, "finetune-stage1"),
         "--logging_dir", "logs-finetune-stage1",
