@@ -34,7 +34,7 @@ dependencies:
   - xz-tools=5.8.1
   - zstd=1.5.7
   - pip:
-      - accelerate==0.25.0
+      - accelerate==0.31.0
       - aiohappyeyeballs==2.6.1
       - aiohttp==3.13.2
       - aiosignal==1.4.0
@@ -103,7 +103,7 @@ dependencies:
       - opencv-python==4.9.0.80
       - packaging==25.0
       - pandas==2.3.3
-      - peft==0.13.2
+      - peft==0.10.0
       - pfzy==0.3.4
       - pillow==10.4.0
       - pluggy==1.6.0
@@ -146,6 +146,8 @@ dependencies:
       - urllib3==2.2.2
       - wcwidth==0.2.14
       - webdataset==0.2.100
+      - xformers==0.0.27
+      - wandb
       - xxhash==3.6.0
       - yarl==1.22.0
       - zipp==3.19.2
