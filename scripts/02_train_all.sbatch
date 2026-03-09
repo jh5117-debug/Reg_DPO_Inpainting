@@ -3,15 +3,15 @@
 #SBATCH --partition=pgpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:2
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=200G
-#SBATCH --time=96:00:00
+#SBATCH --time=48:00:00
 #SBATCH --output=logs/train-all-%j.out
 
 PROJECT_ROOT="${PROJECT_HOME}/dev/Reg_DPO_Inpainting"
 
-NUM_GPUS=${NUM_GPUS:-1}
+NUM_GPUS=${NUM_GPUS:-2}
 DATA_DIR=${DATA_DIR:-${PROJECT_ROOT}/data}
 WEIGHTS_DIR=${WEIGHTS_DIR:-${PROJECT_ROOT}/weights}
 MIXED_PRECISION=${MIXED_PRECISION:-fp16}
