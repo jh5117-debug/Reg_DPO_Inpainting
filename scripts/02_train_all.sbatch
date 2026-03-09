@@ -9,9 +9,12 @@
 #SBATCH --time=96:00:00
 #SBATCH --output=logs/train-all-%j.out
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
 NUM_GPUS=${NUM_GPUS:-1}
-DATA_DIR=${DATA_DIR:-}
-WEIGHTS_DIR=${WEIGHTS_DIR:-}
+DATA_DIR=${DATA_DIR:-${PROJECT_ROOT}/data}
+WEIGHTS_DIR=${WEIGHTS_DIR:-${PROJECT_ROOT}/weights}
 MIXED_PRECISION=${MIXED_PRECISION:-fp16}
 SEED=${SEED:-42}
 WANDB_PROJECT=${WANDB_PROJECT:-DPO_Diffueraser}
@@ -40,13 +43,12 @@ S2_NFRAMES=${S2_NFRAMES:-22}
 
 source ~/.bashrc
 conda activate diffueraser
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 
-CMD="python scripts/run_train_all.py \
+python scripts/run_train_all.py \
   --num_gpus ${NUM_GPUS} \
+  --data_dir ${DATA_DIR} \
+  --weights_dir ${WEIGHTS_DIR} \
   --mixed_precision ${MIXED_PRECISION} \
   --seed ${SEED} \
   --wandb_project ${WANDB_PROJECT} \
@@ -69,9 +71,4 @@ CMD="python scripts/run_train_all.py \
   --s2_checkpointing_steps ${S2_CKPT_STEPS} \
   --s2_checkpoints_total_limit ${S2_CKPT_LIMIT} \
   --s2_validation_steps ${S2_VAL_STEPS} \
-  --s2_nframes ${S2_NFRAMES}"
-
-[ -n "$DATA_DIR" ] && CMD="$CMD --data_dir ${DATA_DIR}"
-[ -n "$WEIGHTS_DIR" ] && CMD="$CMD --weights_dir ${WEIGHTS_DIR}"
-
-eval $CMD
+  --s2_nframes ${S2_NFRAMES}

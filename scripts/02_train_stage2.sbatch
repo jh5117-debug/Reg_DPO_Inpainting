@@ -9,9 +9,12 @@
 #SBATCH --time=48:00:00
 #SBATCH --output=logs/train-stage2-%j.out
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
 NUM_GPUS=${NUM_GPUS:-1}
-DATA_DIR=${DATA_DIR:-}
-WEIGHTS_DIR=${WEIGHTS_DIR:-}
+DATA_DIR=${DATA_DIR:-${PROJECT_ROOT}/data}
+WEIGHTS_DIR=${WEIGHTS_DIR:-${PROJECT_ROOT}/weights}
 BATCH_SIZE=${BATCH_SIZE:-1}
 GRAD_ACCUM=${GRAD_ACCUM:-4}
 LR=${LR:-5e-6}
@@ -28,13 +31,12 @@ WANDB_PROJECT=${WANDB_PROJECT:-DPO_Diffueraser}
 
 source ~/.bashrc
 conda activate diffueraser
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 
-CMD="python scripts/run_train_stage2.py \
+python scripts/run_train_stage2.py \
   --num_gpus ${NUM_GPUS} \
+  --data_dir ${DATA_DIR} \
+  --weights_dir ${WEIGHTS_DIR} \
   --batch_size ${BATCH_SIZE} \
   --gradient_accumulation_steps ${GRAD_ACCUM} \
   --learning_rate ${LR} \
@@ -47,9 +49,4 @@ CMD="python scripts/run_train_stage2.py \
   --nframes ${NFRAMES} \
   --seed ${SEED} \
   --mixed_precision ${MIXED_PRECISION} \
-  --wandb_project ${WANDB_PROJECT}"
-
-[ -n "$DATA_DIR" ] && CMD="$CMD --data_dir ${DATA_DIR}"
-[ -n "$WEIGHTS_DIR" ] && CMD="$CMD --weights_dir ${WEIGHTS_DIR}"
-
-eval $CMD
+  --wandb_project ${WANDB_PROJECT}
