@@ -4,13 +4,13 @@
 run_train_stage2.py — Stage 2 训练入口
 
 自动检测项目根目录（scripts/ 的父目录），无需硬编码路径。
-训练完成后权重自动转换 (内嵌在 train_DiffuEraser_stage2.py 末尾)。
+数据和权重路径可通过命令行参数覆盖。
 
 前置条件：Stage 1 训练已完成，转换权重位于 finetune-stage1/converted_weights/。
 
 Usage:
-    python scripts/run_train_stage2.py                # 单卡
-    python scripts/run_train_stage2.py --num_gpus 8   # 8 卡
+    python scripts/run_train_stage2.py
+    python scripts/run_train_stage2.py --data_dir /path/to/data --weights_dir /path/to/weights
 """
 
 import argparse
@@ -24,30 +24,25 @@ def get_project_root():
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def get_project_paths(project_root):
-    """从项目根目录推导所有路径。"""
-    return {
-        "work_dir": project_root,
-        "weights": os.path.join(project_root, "weights"),
-        "davis": os.path.join(project_root, "dataset", "DAVIS"),
-        "ytbv": os.path.join(project_root, "dataset", "YTBV"),
-        "eval_davis": os.path.join(project_root, "data", "eval", "DAVIS"),
-        "stage1_converted": os.path.join(project_root, "finetune-stage1", "converted_weights"),
-    }
-
-
-def build_stage2_cmd(paths, args):
+def build_stage2_cmd(project_root, args):
     """组装 Stage 2 训练命令。"""
-    pretrained_stage1 = args.pretrained_stage1 or paths["stage1_converted"]
+    data_dir = args.data_dir or os.path.join(project_root, "data")
+    weights_dir = args.weights_dir or os.path.join(project_root, "weights")
 
-    eval_davis = paths["eval_davis"]
+    davis_root = os.path.join(data_dir, "DAVIS")
+    ytbv_root = os.path.join(data_dir, "YTBV")
+
+    pretrained_stage1 = args.pretrained_stage1 or os.path.join(
+        project_root, "finetune-stage1", "converted_weights"
+    )
+
     val_images = [
-        os.path.join(eval_davis, "JPEGImages", "480p", "bear"),
-        os.path.join(eval_davis, "JPEGImages", "480p", "boat"),
+        os.path.join(davis_root, "JPEGImages", "480p", "bear"),
+        os.path.join(davis_root, "JPEGImages", "480p", "boat"),
     ]
     val_masks = [
-        os.path.join(eval_davis, "Annotations", "480p", "bear"),
-        os.path.join(eval_davis, "Annotations", "480p", "boat"),
+        os.path.join(davis_root, "Annotations", "480p", "bear"),
+        os.path.join(davis_root, "Annotations", "480p", "boat"),
     ]
     val_prompts = ["clean background", "clean background"]
 
@@ -56,14 +51,14 @@ def build_stage2_cmd(paths, args):
         "--num_processes", str(args.num_gpus),
         "--mixed_precision", args.mixed_precision,
         "train_DiffuEraser_stage2.py",
-        "--base_model_name_or_path", os.path.join(paths["weights"], "stable-diffusion-v1-5"),
+        "--base_model_name_or_path", os.path.join(weights_dir, "stable-diffusion-v1-5"),
         "--pretrained_stage1", pretrained_stage1,
-        "--motion_adapter_path", os.path.join(paths["weights"], "animatediff-motion-adapter-v1-5-2"),
-        "--vae_path", os.path.join(paths["weights"], "sd-vae-ft-mse"),
-        "--output_dir", os.path.join(paths["work_dir"], "finetune-stage2"),
+        "--motion_adapter_path", os.path.join(weights_dir, "animatediff-motion-adapter-v1-5-2"),
+        "--vae_path", os.path.join(weights_dir, "sd-vae-ft-mse"),
+        "--output_dir", os.path.join(project_root, "finetune-stage2"),
         "--logging_dir", "logs-finetune-stage2",
-        "--davis_root", paths["davis"],
-        "--ytvos_root", paths["ytbv"],
+        "--davis_root", davis_root,
+        "--ytvos_root", ytbv_root,
         "--resolution", "512",
         "--nframes", str(args.nframes),
         "--train_batch_size", str(args.batch_size),
@@ -93,7 +88,7 @@ def build_stage2_cmd(paths, args):
     if args.wandb_entity:
         cmd.extend(["--wandb_entity", args.wandb_entity])
 
-    return cmd
+    return cmd, data_dir, weights_dir, pretrained_stage1
 
 
 def run_stage2(args=None):
@@ -102,15 +97,14 @@ def run_stage2(args=None):
         args = parse_args()
 
     project_root = get_project_root()
-    paths = get_project_paths(project_root)
-    cmd = build_stage2_cmd(paths, args)
-
-    pretrained_stage1 = args.pretrained_stage1 or paths["stage1_converted"]
+    cmd, data_dir, weights_dir, pretrained_stage1 = build_stage2_cmd(project_root, args)
 
     print("=" * 60)
     print("  DiffuEraser Stage 2 Training")
     print("=" * 60)
     print(f"  Project Root:       {project_root}")
+    print(f"  Data Dir:           {data_dir}")
+    print(f"  Weights Dir:        {weights_dir}")
     print(f"  Stage 1 Weights:    {pretrained_stage1}")
     print(f"  GPUs:               {args.num_gpus}")
     print(f"  Max Steps:          {args.max_train_steps}")
@@ -125,13 +119,17 @@ def run_stage2(args=None):
         print("  请先运行 Stage 1 训练，或指定 --pretrained_stage1 参数。")
         return 1
 
-    result = subprocess.run(cmd, cwd=paths["work_dir"])
+    result = subprocess.run(cmd, cwd=project_root)
     return result.returncode
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Stage 2 Training Entry")
     parser.add_argument("--num_gpus", type=int, default=1)
+    parser.add_argument("--data_dir", type=str, default=None,
+                        help="数据目录 (含 DAVIS/ YTBV/)。默认: <project_root>/data/")
+    parser.add_argument("--weights_dir", type=str, default=None,
+                        help="权重目录。默认: <project_root>/weights/")
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=4)
     parser.add_argument("--learning_rate", type=float, default=5e-6)
@@ -147,8 +145,7 @@ def parse_args():
     parser.add_argument("--wandb_project", type=str, default="DPO_Diffueraser")
     parser.add_argument("--wandb_entity", type=str, default=None)
     parser.add_argument("--pretrained_stage1", type=str, default=None,
-                        help="Path to converted Stage 1 weights. "
-                             "Defaults to finetune-stage1/converted_weights/.")
+                        help="Stage 1 转换权重路径。默认: finetune-stage1/converted_weights/")
     return parser.parse_args()
 
 

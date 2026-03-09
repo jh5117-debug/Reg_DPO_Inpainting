@@ -1,4 +1,4 @@
-# === 模型权重（符号链接 + 实际文件）===
+# === 模型权重 ===
 weights/
 *.pt
 *.pth
@@ -6,19 +6,16 @@ weights/
 *.safetensors
 *.bin
 
-# === 大型数据集（全部是符号链接）===
+# === 训练数据（DAVIS/YTBV/DPO 实际视频文件）===
 data/
-dataset/DAVIS/
-dataset/YTBV/
-dataset/DPO/
 
-# === ProPainter（符号链接）===
+# === ProPainter ===
 propainter/
 
-# === 评估工具（符号链接）===
+# === 评估工具 ===
 evaluation/
 
-# === 原始参考代码（符号链接）===
+# === 原始参考代码 ===
 reference/
 
 # === 推理结果 ===
@@ -57,4 +54,3 @@ __pycache__/
 # === 系统文件 ===
 .DS_Store
 Thumbs.db
-weights

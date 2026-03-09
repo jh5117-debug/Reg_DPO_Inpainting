@@ -10,6 +10,8 @@
 #SBATCH --output=logs/train-stage1-%j.out
 
 NUM_GPUS=${NUM_GPUS:-1}
+DATA_DIR=${DATA_DIR:-}
+WEIGHTS_DIR=${WEIGHTS_DIR:-}
 BATCH_SIZE=${BATCH_SIZE:-1}
 GRAD_ACCUM=${GRAD_ACCUM:-4}
 LR=${LR:-5e-6}
@@ -31,7 +33,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 
-python scripts/run_train_stage1.py \
+CMD="python scripts/run_train_stage1.py \
   --num_gpus ${NUM_GPUS} \
   --batch_size ${BATCH_SIZE} \
   --gradient_accumulation_steps ${GRAD_ACCUM} \
@@ -45,4 +47,9 @@ python scripts/run_train_stage1.py \
   --nframes ${NFRAMES} \
   --seed ${SEED} \
   --mixed_precision ${MIXED_PRECISION} \
-  --wandb_project ${WANDB_PROJECT}
+  --wandb_project ${WANDB_PROJECT}"
+
+[ -n "$DATA_DIR" ] && CMD="$CMD --data_dir ${DATA_DIR}"
+[ -n "$WEIGHTS_DIR" ] && CMD="$CMD --weights_dir ${WEIGHTS_DIR}"
+
+eval $CMD

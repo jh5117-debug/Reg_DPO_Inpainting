@@ -25,6 +25,10 @@ def parse_args():
 
     # 通用参数
     parser.add_argument("--num_gpus", type=int, default=1)
+    parser.add_argument("--data_dir", type=str, default=None,
+                        help="数据目录 (含 DAVIS/ YTBV/)。默认: <project_root>/data/")
+    parser.add_argument("--weights_dir", type=str, default=None,
+                        help="权重目录。默认: <project_root>/weights/")
     parser.add_argument("--mixed_precision", type=str, default="fp16")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--wandb_project", type=str, default="DPO_Diffueraser")
@@ -80,6 +84,8 @@ def main():
     s1_args.mixed_precision = args.mixed_precision
     s1_args.wandb_project = args.wandb_project
     s1_args.wandb_entity = args.wandb_entity
+    s1_args.data_dir = args.data_dir
+    s1_args.weights_dir = args.weights_dir
 
     print("=" * 60)
     print("  DiffuEraser Full Pipeline: Stage 1 + Stage 2")
@@ -117,6 +123,8 @@ def main():
     s2_args.mixed_precision = args.mixed_precision
     s2_args.wandb_project = args.wandb_project
     s2_args.wandb_entity = args.wandb_entity
+    s2_args.data_dir = args.data_dir
+    s2_args.weights_dir = args.weights_dir
     s2_args.pretrained_stage1 = None  # 自动从 finetune-stage1/converted_weights/ 获取
 
     # --- Stage 2 ---

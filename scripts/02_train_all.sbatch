@@ -10,6 +10,8 @@
 #SBATCH --output=logs/train-all-%j.out
 
 NUM_GPUS=${NUM_GPUS:-1}
+DATA_DIR=${DATA_DIR:-}
+WEIGHTS_DIR=${WEIGHTS_DIR:-}
 MIXED_PRECISION=${MIXED_PRECISION:-fp16}
 SEED=${SEED:-42}
 WANDB_PROJECT=${WANDB_PROJECT:-DPO_Diffueraser}
@@ -43,7 +45,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 
-python scripts/run_train_all.py \
+CMD="python scripts/run_train_all.py \
   --num_gpus ${NUM_GPUS} \
   --mixed_precision ${MIXED_PRECISION} \
   --seed ${SEED} \
@@ -67,4 +69,9 @@ python scripts/run_train_all.py \
   --s2_checkpointing_steps ${S2_CKPT_STEPS} \
   --s2_checkpoints_total_limit ${S2_CKPT_LIMIT} \
   --s2_validation_steps ${S2_VAL_STEPS} \
-  --s2_nframes ${S2_NFRAMES}
+  --s2_nframes ${S2_NFRAMES}"
+
+[ -n "$DATA_DIR" ] && CMD="$CMD --data_dir ${DATA_DIR}"
+[ -n "$WEIGHTS_DIR" ] && CMD="$CMD --weights_dir ${WEIGHTS_DIR}"
+
+eval $CMD
