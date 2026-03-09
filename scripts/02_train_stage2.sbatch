@@ -9,8 +9,7 @@
 #SBATCH --time=48:00:00
 #SBATCH --output=logs/train-stage2-%j.out
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="${PROJECT_HOME}/dev/Reg_DPO_Inpainting"
 
 NUM_GPUS=${NUM_GPUS:-1}
 DATA_DIR=${DATA_DIR:-${PROJECT_ROOT}/data}

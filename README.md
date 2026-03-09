@@ -56,20 +56,28 @@ Reg_DPO_Inpainting/
 
 ## ⚡ 快速开始
 
-### 1. 拉取最新代码
+### 1. 环境变量（~/.bashrc）
 
 ```bash
-cd Reg_DPO_Inpainting
+export PROJECT_HOME="/sc-projects/sc-proj-cc09-repair/hongyou"
+export HF_TOKEN="hf_xxxxxxxxxxxxxxxxx"
+export WANDB_API_KEY="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+```
+
+### 2. 拉取最新代码
+
+```bash
+cd ${PROJECT_HOME}/dev/Reg_DPO_Inpainting
 git pull
 ```
 
-### 2. 清理 data/ 中的 .py 残留文件
+### 3. 清理 data/ 中的 .py 残留文件（首次执行）
 
 ```bash
 cd data && rm -f *.py && rm -rf __pycache__ && cd ..
 ```
 
-### 3. 训练
+### 4. 训练
 
 ```bash
 sbatch scripts/02_train_all.sbatch
