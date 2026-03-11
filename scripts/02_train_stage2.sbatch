@@ -3,7 +3,7 @@
 #SBATCH --partition=pgpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gres=gpu:2
+#SBATCH --gres=gpu:8
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=200G
 #SBATCH --time=48:00:00
@@ -11,11 +11,11 @@
 
 PROJECT_ROOT="${PROJECT_HOME}/dev/Reg_DPO_Inpainting"
 
-NUM_GPUS=${NUM_GPUS:-2}
+NUM_GPUS=${NUM_GPUS:-8}
 DATA_DIR=${DATA_DIR:-${PROJECT_ROOT}/data}
 WEIGHTS_DIR=${WEIGHTS_DIR:-${PROJECT_ROOT}/weights}
 BATCH_SIZE=${BATCH_SIZE:-1}
-GRAD_ACCUM=${GRAD_ACCUM:-4}
+GRAD_ACCUM=${GRAD_ACCUM:-1}
 LR=${LR:-5e-6}
 LR_SCHEDULER=${LR_SCHEDULER:-constant}
 LR_WARMUP=${LR_WARMUP:-500}
