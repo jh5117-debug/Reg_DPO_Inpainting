@@ -848,7 +848,9 @@ def main(args):
     text_encoder.to(accelerator.device, dtype=weight_dtype)
 
     # We need to recalculate our total training steps as the size of the training dataloader may have changed.
-    num_update_steps_per_epoch = math.ceil(train_dataloader_len / args.gradient_accumulation_steps)
+    # IMPORTANT: use len(train_dataloader) after accelerator.prepare() to get the actual
+    # per-GPU batch count (DistributedSampler splits data across GPUs).
+    num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
     if overrode_max_train_steps:
         args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
     # Afterwards we recalculate our number of training epochs
@@ -883,7 +885,9 @@ def main(args):
 
     logger.info("***** Running training *****")
     logger.info(f"  Num examples = {train_dataset_len}")
-    logger.info(f"  Num batches each epoch = {train_dataloader_len}")
+    logger.info(f"  Num batches each epoch (total) = {train_dataloader_len}")
+    logger.info(f"  Num batches each epoch (per GPU, after distribute) = {len(train_dataloader)}")
+    logger.info(f"  Num update steps per epoch = {num_update_steps_per_epoch}")
     logger.info(f"  Num Epochs = {args.num_train_epochs}")
     logger.info(f"  Instantaneous batch size per device = {args.train_batch_size}")
     logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
