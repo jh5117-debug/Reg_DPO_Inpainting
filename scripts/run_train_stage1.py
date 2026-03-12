@@ -30,13 +30,15 @@ def build_stage1_cmd(project_root, args):
     davis_root = os.path.join(data_dir, "DAVIS")
     ytbv_root = os.path.join(data_dir, "YTBV")
 
+    # Validation uses a separate eval dataset (different resolution from training)
+    eval_dir = os.path.join(project_root, "data", "eval", "davis_test")
     val_images = [
-        os.path.join(davis_root, "JPEGImages", "480p", "bear"),
-        os.path.join(davis_root, "JPEGImages", "480p", "boat"),
+        os.path.join(eval_dir, "JPEGImages", "bear"),
+        os.path.join(eval_dir, "JPEGImages", "boat"),
     ]
     val_masks = [
-        os.path.join(davis_root, "Annotations", "480p", "bear"),
-        os.path.join(davis_root, "Annotations", "480p", "boat"),
+        os.path.join(eval_dir, "test_masks", "bear"),
+        os.path.join(eval_dir, "test_masks", "boat"),
     ]
     val_prompts = ["clean background", "clean background"]
 
@@ -122,7 +124,7 @@ def parse_args():
     parser.add_argument("--learning_rate", type=float, default=5e-6)
     parser.add_argument("--lr_scheduler", type=str, default="constant")
     parser.add_argument("--lr_warmup_steps", type=int, default=500)
-    parser.add_argument("--max_train_steps", type=int, default=50000)
+    parser.add_argument("--max_train_steps", type=int, default=25000)
     parser.add_argument("--checkpointing_steps", type=int, default=2000)
     parser.add_argument("--checkpoints_total_limit", type=int, default=3)
     parser.add_argument("--validation_steps", type=int, default=2000)

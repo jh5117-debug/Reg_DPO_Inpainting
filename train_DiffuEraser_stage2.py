@@ -1030,6 +1030,30 @@ def main(args):
                         accelerator.save_state(save_path)
                         logger.info(f"Saved state to {save_path}")
 
+                        # --- Convert + upload weights at every checkpoint ---
+                        try:
+                            converted_dir = os.path.join(args.output_dir, f"converted_weights_step{global_step}")
+                            os.makedirs(os.path.join(converted_dir, "unet_main"), exist_ok=True)
+                            os.makedirs(os.path.join(converted_dir, "brushnet"), exist_ok=True)
+
+                            unet_unwrapped = unwrap_model(unet_main)
+                            brushnet_unwrapped = unwrap_model(brushnet)
+                            unet_unwrapped.save_pretrained(os.path.join(converted_dir, "unet_main"))
+                            brushnet_unwrapped.save_pretrained(os.path.join(converted_dir, "brushnet"))
+                            logger.info(f"Converted weights saved to {converted_dir}")
+
+                            if is_wandb_available():
+                                artifact = wandb.Artifact(
+                                    f"stage2-weights-step{global_step}",
+                                    type="model",
+                                    metadata={"global_step": global_step, "loss": loss.detach().item()}
+                                )
+                                artifact.add_dir(converted_dir)
+                                wandb.log_artifact(artifact)
+                                logger.info(f"Uploaded W&B Artifact: stage2-weights-step{global_step}")
+                        except Exception as e:
+                            logger.warning(f"Failed to convert/upload weights at step {global_step}: {e}")
+
                     if args.validation_prompt is not None and not os.environ.get("SKIP_VALIDATION") and (global_step % args.validation_steps == 0 or global_step == (initial_global_step+1)):
                         image_logs = log_validation(
                             vae,
