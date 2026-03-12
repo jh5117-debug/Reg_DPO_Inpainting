@@ -27,10 +27,16 @@ NFRAMES=${NFRAMES:-22}
 SEED=${SEED:-42}
 MIXED_PRECISION=${MIXED_PRECISION:-fp16}
 WANDB_PROJECT=${WANDB_PROJECT:-DPO_Diffueraser}
+PRETRAINED_STAGE1=${PRETRAINED_STAGE1:-}
 
 source ~/.bashrc
 conda activate diffueraser
 cd "$PROJECT_ROOT"
+
+STAGE1_ARG=""
+if [ -n "${PRETRAINED_STAGE1}" ]; then
+  STAGE1_ARG="--pretrained_stage1 ${PRETRAINED_STAGE1}"
+fi
 
 python scripts/run_train_stage2.py \
   --num_gpus ${NUM_GPUS} \
@@ -48,4 +54,5 @@ python scripts/run_train_stage2.py \
   --nframes ${NFRAMES} \
   --seed ${SEED} \
   --mixed_precision ${MIXED_PRECISION} \
-  --wandb_project ${WANDB_PROJECT}
+  --wandb_project ${WANDB_PROJECT} \
+  ${STAGE1_ARG}
