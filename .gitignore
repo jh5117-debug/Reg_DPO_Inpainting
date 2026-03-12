@@ -8,7 +8,6 @@ weights/
 
 # === 训练数据（DAVIS/YTBV/DPO 实际视频文件）===
 data/*
-!data/eval/
 
 # === ProPainter ===
 propainter/

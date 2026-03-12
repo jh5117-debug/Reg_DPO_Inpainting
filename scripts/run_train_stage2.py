@@ -37,7 +37,7 @@ def build_stage2_cmd(project_root, args):
     )
 
     # Validation uses a separate eval dataset (different resolution from training)
-    eval_dir = os.path.join(project_root, "data", "eval", "davis_test")
+    eval_dir = os.path.join(project_root, "data_val")
     val_images = [
         os.path.join(eval_dir, "JPEGImages", "bear"),
         os.path.join(eval_dir, "JPEGImages", "boat"),
