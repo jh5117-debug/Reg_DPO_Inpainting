@@ -524,7 +524,7 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--validation_image",
         type=str,
-        default=["data/eval/DAVIS/JPEGImages/480p/bear","data/eval/DAVIS/JPEGImages/480p/boat"],
+        default=["data_val/JPEGImages_432_240/bear","data_val/JPEGImages_432_240/boat"],
         # nargs="+",
         help=(
             "A set of paths to the paintingnet conditioning image be evaluated every `--validation_steps`"
@@ -534,7 +534,7 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--validation_mask",
         type=str,
-        default=["data/eval/DAVIS/Annotations/480p/bear","data/eval/DAVIS/Annotations/480p/boat"],
+        default=["data_val/test_masks/bear","data_val/test_masks/boat"],
         # nargs="+",
         help=(
             "A set of paths to the paintingnet conditioning image be evaluated every `--validation_steps`"

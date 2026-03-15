@@ -1,0 +1,966 @@
+(base) [hozh10@s-sc-node011 Reg_DPO_Inpainting]$ tree -L 5 --filelimit 30 
+. 
+├── convert_checkpoint.py 
+├── data 
+│   ├── DAVIS 
+│   │   ├── Annotations 
+│   │   │   └── 480p [90 entries exceeds filelimit, not opening dir] 
+│   │   ├── ImageSets 
+│   │   │   ├── 2016 
+│   │   │   │   ├── train.txt 
+│   │   │   │   └── val.txt 
+│   │   │   └── 2017 
+│   │   │       ├── train.txt 
+│   │   │       └── val.txt 
+│   │   ├── JPEGImages 
+│   │   │   └── 480p [90 entries exceeds filelimit, not opening dir] 
+│   │   ├── README.md 
+│   │   └── SOURCES.md 
+│   ├── file_client.py 
+│   ├── finetune_dataset.py 
+│   ├── img_util.py 
+│   ├── __init__.py 
+│   ├── __pycache__ 
+│   │   ├── file_client.cpython-39.pyc 
+│   │   ├── finetune_dataset.cpython-39.pyc 
+│   │   ├── img_util.cpython-39.pyc 
+│   │   ├── __init__.cpython-39.pyc 
+│   │   └── utils.cpython-39.pyc 
+│   ├── utils.py 
+│   └── YTBV 
+│       ├── Annotations [3471 entries exceeds filelimit, not opening dir] 
+│       ├── JPEGImages [3471 entries exceeds filelimit, not opening dir] 
+│       ├── meta_instance.json 
+│       └── meta.json 
+├── dataset 
+│   ├── dpo_dataset.py 
+│   ├── file_client.py 
+│   ├── finetune_dataset_caption.py 
+│   ├── finetune_dataset.py 
+│   ├── img_util.py 
+│   ├── __init__.py 
+│   ├── __pycache__ 
+│   │   ├── file_client.cpython-39.pyc 
+│   │   ├── finetune_dataset.cpython-39.pyc 
+│   │   ├── img_util.cpython-39.pyc 
+│   │   ├── __init__.cpython-39.pyc 
+│   │   └── utils.cpython-39.pyc 
+│   ├── region_mask_utils.py 
+│   └── utils.py 
+├── data_val 
+│   ├── JPEGImages_432_240 [50 entries exceeds filelimit, not opening dir] 
+│   └── test_masks [50 entries exceeds filelimit, not opening dir] 
+├── diffueraser 
+│   ├── diffueraser_OR_DPO.py 
+│   ├── diffueraser_OR.py 
+│   ├── diffueraser.py 
+│   ├── __init__.py 
+│   ├── metrics.py 
+│   ├── patch_mask_morph_v2.py 
+│   ├── pipeline_diffueraser.py 
+│   ├── pipeline_diffueraser_stage1.py 
+│   ├── pipeline_diffueraser_stage2.py 
+│   └── __pycache__ 
+│       ├── __init__.cpython-39.pyc 
+│       ├── pipeline_diffueraser_stage1.cpython-39.pyc 
+│       └── pipeline_diffueraser_stage2.cpython-39.pyc 
+├── docs 
+│   ├── 12_experiment_plan.md 
+│   ├── DPO_Finetuning.md 
+│   ├── DPO_Integration_Analysis.md 
+│   ├── experiment_report.md 
+│   ├── non_prompt_finetune_slurm_simplify.md 
+│   ├── pipeline_refactoring_plan.md 
+│   ├── readme_verification_report.md 
+│   ├── slurm_pipeline_plan.md 
+│   ├── stage2_smoke_test.md 
+│   └── 重构实验视频对比逻辑.md 
+├── DPO_Dataset_Generation.md 
+├── environment.yml 
+├── finetune-stage1 
+│   ├── checkpoint-20000 
+│   │   ├── model_1.safetensors 
+│   │   ├── model.safetensors 
+│   │   ├── optimizer.bin 
+│   │   ├── random_states_0.pkl 
+│   │   ├── scaler.pt 
+│   │   └── scheduler.bin 
+│   ├── checkpoint-22000 
+│   │   ├── model_1.safetensors 
+│   │   ├── model.safetensors 
+│   │   ├── optimizer.bin 
+│   │   ├── random_states_0.pkl 
+│   │   ├── scaler.pt 
+│   │   └── scheduler.bin 
+│   ├── checkpoint-24000 
+│   │   ├── model_1.safetensors 
+│   │   ├── model.safetensors 
+│   │   ├── optimizer.bin 
+│   │   ├── random_states_0.pkl 
+│   │   ├── scaler.pt 
+│   │   └── scheduler.bin 
+│   ├── converted_weights 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   ├── converted_weights_step10000 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   ├── converted_weights_step12000 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   ├── converted_weights_step14000 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   ├── converted_weights_step16000 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   ├── converted_weights_step18000 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   ├── converted_weights_step2000 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   ├── converted_weights_step20000 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   ├── converted_weights_step22000 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   ├── converted_weights_step24000 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   ├── converted_weights_step4000 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   ├── converted_weights_step6000 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   └── converted_weights_step8000 
+│       ├── brushnet 
+│       │   ├── config.json 
+│       │   └── diffusion_pytorch_model.safetensors 
+│       └── unet_main 
+│           ├── config.json 
+│           └── diffusion_pytorch_model.safetensors 
+├── finetune-stage2 
+├── inference 
+│   ├── compare_all.py 
+│   ├── configs 
+│   │   └── prompt_template.yaml 
+│   ├── generate_captions_BR.py 
+│   ├── generate_captions_OR.py 
+│   ├── generate_report.py 
+│   ├── __init__.py 
+│   ├── metrics.py 
+│   ├── prompt_cache 
+│   │   ├── all_captions_BR.yaml 
+│   │   └── all_captions_OR.yaml 
+│   ├── __pycache__ 
+│   │   ├── __init__.cpython-39.pyc 
+│   │   └── metrics.cpython-39.pyc 
+│   ├── run_20exp_unified.sh 
+│   ├── run_BR.py 
+│   ├── run_OR.py 
+│   └── scripts 
+│       └── instruction.txt 
+├── libs 
+│   ├── brushnet_CA.py 
+│   ├── __init__.py 
+│   ├── __pycache__ 
+│   │   ├── brushnet_CA.cpython-39.pyc 
+│   │   ├── __init__.cpython-39.pyc 
+│   │   ├── transformer_temporal.cpython-39.pyc 
+│   │   ├── unet_2d_blocks.cpython-39.pyc 
+│   │   ├── unet_2d_condition.cpython-39.pyc 
+│   │   ├── unet_3d_blocks.cpython-39.pyc 
+│   │   └── unet_motion_model.cpython-39.pyc 
+│   ├── transformer_temporal.py 
+│   ├── unet_2d_blocks.py 
+│   ├── unet_2d_condition.py 
+│   ├── unet_3d_blocks.py 
+│   └── unet_motion_model.py 
+├── logs 
+│   ├── train-all-8078273.out 
+│   ├── train-all-8085145.out 
+│   ├── train-stage1-8092476.out 
+│   └── train-stage2-8106609.out 
+├── logs-finetune-stage1 
+│   └── samples 
+│       ├── sample-1 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       ├── sample-10000 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       ├── sample-12000 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       ├── sample-14000 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       ├── sample-16000 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       ├── sample-18000 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       ├── sample-2000 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       ├── sample-20000 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       ├── sample-22000 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       ├── sample-24000 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       ├── sample-4000 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       ├── sample-6000 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       └── sample-8000 
+│           ├── 1.gif 
+│           └── 2.gif 
+├── PRD 
+│   └── VideoDPO_to_DiffuEraser_Report.md 
+├── __pycache__ 
+│   └── validation_metrics.cpython-39.pyc 
+├── README.md 
+├── requirements.txt 
+├── scripts 
+│   ├── 02_train_all.sbatch 
+│   ├── 02_train_stage1.sbatch 
+│   ├── 02_train_stage2.sbatch 
+│   ├── __pycache__ 
+│   │   ├── run_train_stage1.cpython-39.pyc 
+│   │   └── run_train_stage2.cpython-39.pyc 
+│   ├── run_train_all.py 
+│   ├── run_train_stage1.py 
+│   └── run_train_stage2.py 
+├── tools 
+│   └── score_inpainting_quality.py 
+├── train_DiffuEraser_stage1.py 
+├── train_DiffuEraser_stage2.py 
+├── validation_metrics.py 
+├── wandb 
+│   ├── debug-internal.log -> run-20260314_084312-tex5oili/logs/debug-internal.log 
+│   ├── debug.log -> run-20260314_084312-tex5oili/logs/debug.log 
+│   ├── latest-run -> run-20260314_084312-tex5oili 
+│   ├── run-20260309_202309-tonizjnk 
+│   │   ├── files 
+│   │   │   ├── media 
+│   │   │   │   └── videos 
+│   │   │   ├── output.log 
+│   │   │   ├── requirements.txt 
+│   │   │   └── wandb-metadata.json 
+│   │   ├── logs 
+│   │   │   ├── debug-core.log -> /home/hozh10/.cache/wandb/logs/core-debug-20260309_202310.log 
+│   │   │   ├── debug-internal.log 
+│   │   │   └── debug.log 
+│   │   ├── run-tonizjnk.wandb 
+│   │   └── tmp 
+│   │       └── code 
+│   ├── run-20260310_221723-7frd3g5s 
+│   │   ├── files 
+│   │   │   ├── config.yaml 
+│   │   │   ├── media 
+│   │   │   │   └── videos 
+│   │   │   ├── output.log 
+│   │   │   ├── requirements.txt 
+│   │   │   ├── wandb-metadata.json 
+│   │   │   └── wandb-summary.json 
+│   │   ├── logs 
+│   │   │   ├── debug-core.log -> /home/hozh10/.cache/wandb/logs/core-debug-20260310_221724.log 
+│   │   │   ├── debug-internal.log 
+│   │   │   └── debug.log 
+│   │   ├── run-7frd3g5s.wandb 
+│   │   └── tmp 
+│   │       └── code 
+│   ├── run-20260311_081400-jus71rgt 
+│   │   ├── files 
+│   │   │   ├── media 
+│   │   │   │   └── videos 
+│   │   │   ├── output.log 
+│   │   │   ├── requirements.txt 
+│   │   │   └── wandb-metadata.json 
+│   │   ├── logs 
+│   │   │   ├── debug-core.log -> /home/hozh10/.cache/wandb/logs/core-debug-20260311_081401.log 
+│   │   │   ├── debug-internal.log 
+│   │   │   └── debug.log 
+│   │   ├── run-jus71rgt.wandb 
+│   │   └── tmp 
+│   │       └── code 
+│   ├── run-20260311_084702-dpn6hifj 
+│   │   ├── files 
+│   │   │   ├── config.yaml 
+│   │   │   ├── media 
+│   │   │   │   └── videos 
+│   │   │   ├── output.log 
+│   │   │   ├── requirements.txt 
+│   │   │   ├── wandb-metadata.json 
+│   │   │   └── wandb-summary.json 
+│   │   ├── logs 
+│   │   │   ├── debug-core.log -> /home/hozh10/.cache/wandb/logs/core-debug-20260311_084703.log 
+│   │   │   ├── debug-internal.log 
+│   │   │   └── debug.log 
+│   │   ├── run-dpn6hifj.wandb 
+│   │   └── tmp 
+│   │       └── code 
+│   ├── run-20260311_113641-s68r773y 
+│   │   ├── files 
+│   │   │   ├── config.yaml 
+│   │   │   ├── media 
+│   │   │   │   └── videos 
+│   │   │   ├── output.log 
+│   │   │   ├── requirements.txt 
+│   │   │   ├── wandb-metadata.json 
+│   │   │   └── wandb-summary.json 
+│   │   ├── logs 
+│   │   │   ├── debug-core.log -> /home/hozh10/.cache/wandb/logs/core-debug-20260311_113641.log 
+│   │   │   ├── debug-internal.log 
+│   │   │   └── debug.log 
+│   │   ├── run-s68r773y.wandb 
+│   │   └── tmp 
+│   │       └── code 
+│   ├── run-20260312_022206-x3tutcnz 
+│   │   ├── files 
+│   │   │   ├── config.yaml 
+│   │   │   ├── media 
+│   │   │   │   └── videos 
+│   │   │   ├── output.log 
+│   │   │   ├── requirements.txt 
+│   │   │   ├── wandb-metadata.json 
+│   │   │   └── wandb-summary.json 
+│   │   ├── logs 
+│   │   │   ├── debug-core.log -> /home/hozh10/.cache/wandb/logs/core-debug-20260312_022207.log 
+│   │   │   ├── debug-internal.log 
+│   │   │   └── debug.log 
+│   │   ├── run-x3tutcnz.wandb 
+│   │   └── tmp 
+│   │       └── code 
+│   ├── run-20260312_223845-03ccu3ui 
+│   │   ├── files 
+│   │   │   ├── config.yaml 
+│   │   │   ├── media 
+│   │   │   │   └── videos 
+│   │   │   ├── output.log 
+│   │   │   ├── requirements.txt 
+│   │   │   ├── wandb-metadata.json 
+│   │   │   └── wandb-summary.json 
+│   │   ├── logs 
+│   │   │   ├── debug-core.log -> /home/hozh10/.cache/wandb/logs/core-debug-20260312_223846.log 
+│   │   │   ├── debug-internal.log 
+│   │   │   └── debug.log 
+│   │   ├── run-03ccu3ui.wandb 
+│   │   └── tmp 
+│   │       └── code 
+│   └── run-20260314_084312-tex5oili 
+│       ├── files 
+│       │   ├── config.yaml 
+│       │   ├── output.log 
+│       │   ├── requirements.txt 
+│       │   ├── wandb-metadata.json 
+│       │   └── wandb-summary.json 
+│       ├── logs 
+│       │   ├── debug-core.log -> /home/hozh10/.cache/wandb/logs/core-debug-20260314_084313.log 
+│       │   ├── debug-internal.log 
+│       │   └── debug.log 
+│       ├── run-tex5oili.wandb 
+│       └── tmp 
+│           └── code 
+└── weights 
+    ├── animatediff-motion-adapter-v1-5-2 
+    │   ├── config.json 
+    │   ├── diffusion_pytorch_model.fp16.safetensors 
+    │   ├── diffusion_pytorch_model.safetensors 
+    │   └── README.md 
+    ├── diffuEraser 
+    │   ├── brushnet 
+    │   │   ├── config.json 
+    │   │   └── diffusion_pytorch_model.safetensors 
+    │   ├── README.md 
+    │   └── unet_main 
+    │       ├── config.json 
+    │       └── diffusion_pytorch_model.safetensors 
+    ├── sd-vae-ft-mse 
+    │   ├── config.json 
+    │   ├── diffusion_pytorch_model.bin 
+    │   ├── diffusion_pytorch_model.safetensors 
+    │   └── README.md 
+    ├── stable-diffusion-v1-5 
+    │   ├── feature_extractor 
+    │   │   └── preprocessor_config.json 
+    │   ├── model_index.json 
+    │   ├── safety_checker 
+    │   │   ├── config.json 
+    │   │   ├── model.fp16.safetensors 
+    │   │   ├── model.safetensors 
+    │   │   ├── pytorch_model.bin 
+    │   │   └── pytorch_model.fp16.bin 
+    │   ├── scheduler 
+    │   │   └── scheduler_config.json 
+    │   ├── text_encoder 
+    │   │   ├── config.json 
+    │   │   ├── model.fp16.safetensors 
+    │   │   ├── model.safetensors 
+    │   │   ├── pytorch_model.bin 
+    │   │   └── pytorch_model.fp16.bin 
+    │   ├── tokenizer 
+    │   │   ├── merges.txt 
+    │   │   ├── special_tokens_map.json 
+    │   │   ├── tokenizer_config.json 
+    │   │   └── vocab.json 
+    │   ├── unet 
+    │   │   ├── config.json 
+    │   │   ├── diffusion_pytorch_model.bin 
+    │   │   ├── diffusion_pytorch_model.fp16.bin 
+    │   │   ├── diffusion_pytorch_model.fp16.safetensors 
+    │   │   ├── diffusion_pytorch_model.non_ema.bin 
+    │   │   ├── diffusion_pytorch_model.non_ema.safetensors 
+    │   │   └── diffusion_pytorch_model.safetensors 
+    │   ├── v1-5-pruned.ckpt 
+    │   ├── v1-5-pruned-emaonly.ckpt 
+    │   └── vae 
+    │       ├── config.json 
+    │       ├── diffusion_pytorch_model.bin 
+    │       ├── diffusion_pytorch_model.fp16.bin 
+    │       ├── diffusion_pytorch_model.fp16.safetensors 
+    │       └── diffusion_pytorch_model.safetensors 
+    └── weights_extras.tar 
+
+163 directories, 316 files
+ (base) [hozh10@s-sc-node011 Reg_DPO_Inpainting]$ tree -L 5 --filelimit 30 
+. 
+├── convert_checkpoint.py 
+├── data 
+│   ├── DAVIS 
+│   │   ├── Annotations 
+│   │   │   └── 480p [90 entries exceeds filelimit, not opening dir] 
+│   │   ├── ImageSets 
+│   │   │   ├── 2016 
+│   │   │   │   ├── train.txt 
+│   │   │   │   └── val.txt 
+│   │   │   └── 2017 
+│   │   │       ├── train.txt 
+│   │   │       └── val.txt 
+│   │   ├── JPEGImages 
+│   │   │   └── 480p [90 entries exceeds filelimit, not opening dir] 
+│   │   ├── README.md 
+│   │   └── SOURCES.md 
+│   ├── file_client.py 
+│   ├── finetune_dataset.py 
+│   ├── img_util.py 
+│   ├── __init__.py 
+│   ├── __pycache__ 
+│   │   ├── file_client.cpython-39.pyc 
+│   │   ├── finetune_dataset.cpython-39.pyc 
+│   │   ├── img_util.cpython-39.pyc 
+│   │   ├── __init__.cpython-39.pyc 
+│   │   └── utils.cpython-39.pyc 
+│   ├── utils.py 
+│   └── YTBV 
+│       ├── Annotations [3471 entries exceeds filelimit, not opening dir] 
+│       ├── JPEGImages [3471 entries exceeds filelimit, not opening dir] 
+│       ├── meta_instance.json 
+│       └── meta.json 
+├── dataset 
+│   ├── dpo_dataset.py 
+│   ├── file_client.py 
+│   ├── finetune_dataset_caption.py 
+│   ├── finetune_dataset.py 
+│   ├── img_util.py 
+│   ├── __init__.py 
+│   ├── __pycache__ 
+│   │   ├── file_client.cpython-39.pyc 
+│   │   ├── finetune_dataset.cpython-39.pyc 
+│   │   ├── img_util.cpython-39.pyc 
+│   │   ├── __init__.cpython-39.pyc 
+│   │   └── utils.cpython-39.pyc 
+│   ├── region_mask_utils.py 
+│   └── utils.py 
+├── data_val 
+│   ├── JPEGImages_432_240 [50 entries exceeds filelimit, not opening dir] 
+│   └── test_masks [50 entries exceeds filelimit, not opening dir] 
+├── diffueraser 
+│   ├── diffueraser_OR_DPO.py 
+│   ├── diffueraser_OR.py 
+│   ├── diffueraser.py 
+│   ├── __init__.py 
+│   ├── metrics.py 
+│   ├── patch_mask_morph_v2.py 
+│   ├── pipeline_diffueraser.py 
+│   ├── pipeline_diffueraser_stage1.py 
+│   ├── pipeline_diffueraser_stage2.py 
+│   └── __pycache__ 
+│       ├── __init__.cpython-39.pyc 
+│       ├── pipeline_diffueraser_stage1.cpython-39.pyc 
+│       └── pipeline_diffueraser_stage2.cpython-39.pyc 
+├── docs 
+│   ├── 12_experiment_plan.md 
+│   ├── DPO_Finetuning.md 
+│   ├── DPO_Integration_Analysis.md 
+│   ├── experiment_report.md 
+│   ├── non_prompt_finetune_slurm_simplify.md 
+│   ├── pipeline_refactoring_plan.md 
+│   ├── readme_verification_report.md 
+│   ├── slurm_pipeline_plan.md 
+│   ├── stage2_smoke_test.md 
+│   └── 重构实验视频对比逻辑.md 
+├── DPO_Dataset_Generation.md 
+├── environment.yml 
+├── finetune-stage1 
+│   ├── checkpoint-20000 
+│   │   ├── model_1.safetensors 
+│   │   ├── model.safetensors 
+│   │   ├── optimizer.bin 
+│   │   ├── random_states_0.pkl 
+│   │   ├── scaler.pt 
+│   │   └── scheduler.bin 
+│   ├── checkpoint-22000 
+│   │   ├── model_1.safetensors 
+│   │   ├── model.safetensors 
+│   │   ├── optimizer.bin 
+│   │   ├── random_states_0.pkl 
+│   │   ├── scaler.pt 
+│   │   └── scheduler.bin 
+│   ├── checkpoint-24000 
+│   │   ├── model_1.safetensors 
+│   │   ├── model.safetensors 
+│   │   ├── optimizer.bin 
+│   │   ├── random_states_0.pkl 
+│   │   ├── scaler.pt 
+│   │   └── scheduler.bin 
+│   ├── converted_weights 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   ├── converted_weights_step10000 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   ├── converted_weights_step12000 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   ├── converted_weights_step14000 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   ├── converted_weights_step16000 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   ├── converted_weights_step18000 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   ├── converted_weights_step2000 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   ├── converted_weights_step20000 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   ├── converted_weights_step22000 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   ├── converted_weights_step24000 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   ├── converted_weights_step4000 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   ├── converted_weights_step6000 
+│   │   ├── brushnet 
+│   │   │   ├── config.json 
+│   │   │   └── diffusion_pytorch_model.safetensors 
+│   │   └── unet_main 
+│   │       ├── config.json 
+│   │       └── diffusion_pytorch_model.safetensors 
+│   └── converted_weights_step8000 
+│       ├── brushnet 
+│       │   ├── config.json 
+│       │   └── diffusion_pytorch_model.safetensors 
+│       └── unet_main 
+│           ├── config.json 
+│           └── diffusion_pytorch_model.safetensors 
+├── finetune-stage2 
+├── inference 
+│   ├── compare_all.py 
+│   ├── configs 
+│   │   └── prompt_template.yaml 
+│   ├── generate_captions_BR.py 
+│   ├── generate_captions_OR.py 
+│   ├── generate_report.py 
+│   ├── __init__.py 
+│   ├── metrics.py 
+│   ├── prompt_cache 
+│   │   ├── all_captions_BR.yaml 
+│   │   └── all_captions_OR.yaml 
+│   ├── __pycache__ 
+│   │   ├── __init__.cpython-39.pyc 
+│   │   └── metrics.cpython-39.pyc 
+│   ├── run_20exp_unified.sh 
+│   ├── run_BR.py 
+│   ├── run_OR.py 
+│   └── scripts 
+│       └── instruction.txt 
+├── libs 
+│   ├── brushnet_CA.py 
+│   ├── __init__.py 
+│   ├── __pycache__ 
+│   │   ├── brushnet_CA.cpython-39.pyc 
+│   │   ├── __init__.cpython-39.pyc 
+│   │   ├── transformer_temporal.cpython-39.pyc 
+│   │   ├── unet_2d_blocks.cpython-39.pyc 
+│   │   ├── unet_2d_condition.cpython-39.pyc 
+│   │   ├── unet_3d_blocks.cpython-39.pyc 
+│   │   └── unet_motion_model.cpython-39.pyc 
+│   ├── transformer_temporal.py 
+│   ├── unet_2d_blocks.py 
+│   ├── unet_2d_condition.py 
+│   ├── unet_3d_blocks.py 
+│   └── unet_motion_model.py 
+├── logs 
+│   ├── train-all-8078273.out 
+│   ├── train-all-8085145.out 
+│   ├── train-stage1-8092476.out 
+│   └── train-stage2-8106609.out 
+├── logs-finetune-stage1 
+│   └── samples 
+│       ├── sample-1 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       ├── sample-10000 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       ├── sample-12000 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       ├── sample-14000 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       ├── sample-16000 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       ├── sample-18000 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       ├── sample-2000 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       ├── sample-20000 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       ├── sample-22000 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       ├── sample-24000 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       ├── sample-4000 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       ├── sample-6000 
+│       │   ├── 1.gif 
+│       │   └── 2.gif 
+│       └── sample-8000 
+│           ├── 1.gif 
+│           └── 2.gif 
+├── PRD 
+│   └── VideoDPO_to_DiffuEraser_Report.md 
+├── __pycache__ 
+│   └── validation_metrics.cpython-39.pyc 
+├── README.md 
+├── requirements.txt 
+├── scripts 
+│   ├── 02_train_all.sbatch 
+│   ├── 02_train_stage1.sbatch 
+│   ├── 02_train_stage2.sbatch 
+│   ├── __pycache__ 
+│   │   ├── run_train_stage1.cpython-39.pyc 
+│   │   └── run_train_stage2.cpython-39.pyc 
+│   ├── run_train_all.py 
+│   ├── run_train_stage1.py 
+│   └── run_train_stage2.py 
+├── tools 
+│   └── score_inpainting_quality.py 
+├── train_DiffuEraser_stage1.py 
+├── train_DiffuEraser_stage2.py 
+├── validation_metrics.py 
+├── wandb 
+│   ├── debug-internal.log -> run-20260314_084312-tex5oili/logs/debug-internal.log 
+│   ├── debug.log -> run-20260314_084312-tex5oili/logs/debug.log 
+│   ├── latest-run -> run-20260314_084312-tex5oili 
+│   ├── run-20260309_202309-tonizjnk 
+│   │   ├── files 
+│   │   │   ├── media 
+│   │   │   │   └── videos 
+│   │   │   ├── output.log 
+│   │   │   ├── requirements.txt 
+│   │   │   └── wandb-metadata.json 
+│   │   ├── logs 
+│   │   │   ├── debug-core.log -> /home/hozh10/.cache/wandb/logs/core-debug-20260309_202310.log 
+│   │   │   ├── debug-internal.log 
+│   │   │   └── debug.log 
+│   │   ├── run-tonizjnk.wandb 
+│   │   └── tmp 
+│   │       └── code 
+│   ├── run-20260310_221723-7frd3g5s 
+│   │   ├── files 
+│   │   │   ├── config.yaml 
+│   │   │   ├── media 
+│   │   │   │   └── videos 
+│   │   │   ├── output.log 
+│   │   │   ├── requirements.txt 
+│   │   │   ├── wandb-metadata.json 
+│   │   │   └── wandb-summary.json 
+│   │   ├── logs 
+│   │   │   ├── debug-core.log -> /home/hozh10/.cache/wandb/logs/core-debug-20260310_221724.log 
+│   │   │   ├── debug-internal.log 
+│   │   │   └── debug.log 
+│   │   ├── run-7frd3g5s.wandb 
+│   │   └── tmp 
+│   │       └── code 
+│   ├── run-20260311_081400-jus71rgt 
+│   │   ├── files 
+│   │   │   ├── media 
+│   │   │   │   └── videos 
+│   │   │   ├── output.log 
+│   │   │   ├── requirements.txt 
+│   │   │   └── wandb-metadata.json 
+│   │   ├── logs 
+│   │   │   ├── debug-core.log -> /home/hozh10/.cache/wandb/logs/core-debug-20260311_081401.log 
+│   │   │   ├── debug-internal.log 
+│   │   │   └── debug.log 
+│   │   ├── run-jus71rgt.wandb 
+│   │   └── tmp 
+│   │       └── code 
+│   ├── run-20260311_084702-dpn6hifj 
+│   │   ├── files 
+│   │   │   ├── config.yaml 
+│   │   │   ├── media 
+│   │   │   │   └── videos 
+│   │   │   ├── output.log 
+│   │   │   ├── requirements.txt 
+│   │   │   ├── wandb-metadata.json 
+│   │   │   └── wandb-summary.json 
+│   │   ├── logs 
+│   │   │   ├── debug-core.log -> /home/hozh10/.cache/wandb/logs/core-debug-20260311_084703.log 
+│   │   │   ├── debug-internal.log 
+│   │   │   └── debug.log 
+│   │   ├── run-dpn6hifj.wandb 
+│   │   └── tmp 
+│   │       └── code 
+│   ├── run-20260311_113641-s68r773y 
+│   │   ├── files 
+│   │   │   ├── config.yaml 
+│   │   │   ├── media 
+│   │   │   │   └── videos 
+│   │   │   ├── output.log 
+│   │   │   ├── requirements.txt 
+│   │   │   ├── wandb-metadata.json 
+│   │   │   └── wandb-summary.json 
+│   │   ├── logs 
+│   │   │   ├── debug-core.log -> /home/hozh10/.cache/wandb/logs/core-debug-20260311_113641.log 
+│   │   │   ├── debug-internal.log 
+│   │   │   └── debug.log 
+│   │   ├── run-s68r773y.wandb 
+│   │   └── tmp 
+│   │       └── code 
+│   ├── run-20260312_022206-x3tutcnz 
+│   │   ├── files 
+│   │   │   ├── config.yaml 
+│   │   │   ├── media 
+│   │   │   │   └── videos 
+│   │   │   ├── output.log 
+│   │   │   ├── requirements.txt 
+│   │   │   ├── wandb-metadata.json 
+│   │   │   └── wandb-summary.json 
+│   │   ├── logs 
+│   │   │   ├── debug-core.log -> /home/hozh10/.cache/wandb/logs/core-debug-20260312_022207.log 
+│   │   │   ├── debug-internal.log 
+│   │   │   └── debug.log 
+│   │   ├── run-x3tutcnz.wandb 
+│   │   └── tmp 
+│   │       └── code 
+│   ├── run-20260312_223845-03ccu3ui 
+│   │   ├── files 
+│   │   │   ├── config.yaml 
+│   │   │   ├── media 
+│   │   │   │   └── videos 
+│   │   │   ├── output.log 
+│   │   │   ├── requirements.txt 
+│   │   │   ├── wandb-metadata.json 
+│   │   │   └── wandb-summary.json 
+│   │   ├── logs 
+│   │   │   ├── debug-core.log -> /home/hozh10/.cache/wandb/logs/core-debug-20260312_223846.log 
+│   │   │   ├── debug-internal.log 
+│   │   │   └── debug.log 
+│   │   ├── run-03ccu3ui.wandb 
+│   │   └── tmp 
+│   │       └── code 
+│   └── run-20260314_084312-tex5oili 
+│       ├── files 
+│       │   ├── config.yaml 
+│       │   ├── output.log 
+│       │   ├── requirements.txt 
+│       │   ├── wandb-metadata.json 
+│       │   └── wandb-summary.json 
+│       ├── logs 
+│       │   ├── debug-core.log -> /home/hozh10/.cache/wandb/logs/core-debug-20260314_084313.log 
+│       │   ├── debug-internal.log 
+│       │   └── debug.log 
+│       ├── run-tex5oili.wandb 
+│       └── tmp 
+│           └── code 
+└── weights 
+    ├── animatediff-motion-adapter-v1-5-2 
+    │   ├── config.json 
+    │   ├── diffusion_pytorch_model.fp16.safetensors 
+    │   ├── diffusion_pytorch_model.safetensors 
+    │   └── README.md 
+    ├── diffuEraser 
+    │   ├── brushnet 
+    │   │   ├── config.json 
+    │   │   └── diffusion_pytorch_model.safetensors 
+    │   ├── README.md 
+    │   └── unet_main 
+    │       ├── config.json 
+    │       └── diffusion_pytorch_model.safetensors 
+    ├── sd-vae-ft-mse 
+    │   ├── config.json 
+    │   ├── diffusion_pytorch_model.bin 
+    │   ├── diffusion_pytorch_model.safetensors 
+    │   └── README.md 
+    ├── stable-diffusion-v1-5 
+    │   ├── feature_extractor 
+    │   │   └── preprocessor_config.json 
+    │   ├── model_index.json 
+    │   ├── safety_checker 
+    │   │   ├── config.json 
+    │   │   ├── model.fp16.safetensors 
+    │   │   ├── model.safetensors 
+    │   │   ├── pytorch_model.bin 
+    │   │   └── pytorch_model.fp16.bin 
+    │   ├── scheduler 
+    │   │   └── scheduler_config.json 
+    │   ├── text_encoder 
+    │   │   ├── config.json 
+    │   │   ├── model.fp16.safetensors 
+    │   │   ├── model.safetensors 
+    │   │   ├── pytorch_model.bin 
+    │   │   └── pytorch_model.fp16.bin 
+    │   ├── tokenizer 
+    │   │   ├── merges.txt 
+    │   │   ├── special_tokens_map.json 
+    │   │   ├── tokeniz er_config.json 
+    │   │   └── vocab.json 
+    │   ├── unet 
+    │   │   ├── config.json 
+    │   │   ├── diffusion_pytorch_model.bin 
+    │   │   ├── diffusion_pytorch_model.fp16.bin 
+    │   │   ├── diffusion_pytorch_model.fp16.safetensors 
+    │   │   ├── diffusion_pytorch_model.non_ema.bin 
+    │   │   ├── diffusion_pytorch_model.non_ema.safetensors 
+    │   │   └── diffusion_pytorch_model.safetensors 
+    │   ├── v1-5-pruned.ckpt 
+    │   ├── v1-5-pruned-emaonly.ckpt 
+    │   └── vae 
+    │       ├── config.json 
+    │       ├── diffusion_pytorch_model.bin 
+    │       ├── diffusion_pytorch_model.fp16.bin 
+    │       ├── diffusion_pytorch_model.fp16.safetensors 
+    │       └── diffusion_pytorch_model.safetensors 
+    └── weights_extras.tar 
+
+163 directories, 316 files
