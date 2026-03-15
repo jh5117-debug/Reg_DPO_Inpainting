@@ -124,7 +124,7 @@ def parse_args():
     parser.add_argument("--learning_rate", type=float, default=5e-6)
     parser.add_argument("--lr_scheduler", type=str, default="constant")
     parser.add_argument("--lr_warmup_steps", type=int, default=500)
-    parser.add_argument("--max_train_steps", type=int, default=25000)
+    parser.add_argument("--max_train_steps", type=int, default=26000)
     parser.add_argument("--checkpointing_steps", type=int, default=2000)
     parser.add_argument("--checkpoints_total_limit", type=int, default=3)
     parser.add_argument("--validation_steps", type=int, default=2000)

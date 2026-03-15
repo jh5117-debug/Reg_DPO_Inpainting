@@ -192,14 +192,9 @@ def log_validation(
 
             if is_wandb_available() and accelerator.is_main_process:
                 wandb.log({
-                    "val/psnr": batch_results["psnr_mean"],
-                    "val/ssim": batch_results["ssim_mean"],
+                    "val/psnr_mean": batch_results["psnr_mean"],
+                    "val/ssim_mean": batch_results["ssim_mean"],
                 }, step=step)
-                for r in batch_results["per_video"]:
-                    wandb.log({
-                        f"val/psnr_{r['video_name']}": r["psnr"],
-                        f"val/ssim_{r['video_name']}": r["ssim"],
-                    }, step=step)
         except Exception as e:
             logger.warning(f"Failed to compute validation metrics: {e}")
 
