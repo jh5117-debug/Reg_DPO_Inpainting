@@ -30,17 +30,8 @@ def build_stage1_cmd(project_root, args):
     davis_root = os.path.join(data_dir, "DAVIS")
     ytbv_root = os.path.join(data_dir, "YTBV")
 
-    # Validation uses a separate eval dataset (different resolution from training)
+    # Validation uses a separate eval dataset (auto-discovered from val_data_dir)
     eval_dir = os.path.join(project_root, "data_val")
-    val_images = [
-        os.path.join(eval_dir, "JPEGImages_432_240", "bear"),
-        os.path.join(eval_dir, "JPEGImages_432_240", "boat"),
-    ]
-    val_masks = [
-        os.path.join(eval_dir, "test_masks", "bear"),
-        os.path.join(eval_dir, "test_masks", "boat"),
-    ]
-    val_prompts = ["clean background", "clean background"]
 
     cmd = [
         "accelerate", "launch",
@@ -64,6 +55,7 @@ def build_stage1_cmd(project_root, args):
         "--max_train_steps", str(args.max_train_steps),
         "--checkpointing_steps", str(args.checkpointing_steps),
         "--validation_steps", str(args.validation_steps),
+        "--val_data_dir", eval_dir,
         "--seed", str(args.seed),
         "--report_to", "wandb",
         "--tracker_project_name", args.wandb_project,
@@ -72,9 +64,6 @@ def build_stage1_cmd(project_root, args):
         "--mixed_precision", args.mixed_precision,
         "--set_grads_to_none",
         "--resume_from_checkpoint", "latest",
-        "--validation_image", str(val_images),
-        "--validation_mask", str(val_masks),
-        "--validation_prompt", str(val_prompts),
     ]
 
     if args.checkpoints_total_limit:

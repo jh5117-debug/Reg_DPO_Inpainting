@@ -67,6 +67,9 @@ def log_validation(
 ):
     logger.info("Running validation... ")
 
+    # --- Use inference.metrics for PSNR/SSIM (as required) ---
+    from inference.metrics import compute_psnr, compute_ssim
+
     ################ pipeline ################
     pipeline = StableDiffusionDiffuEraserPipelineStageTwo.from_pretrained(
         args.base_model_name_or_path,
@@ -92,30 +95,37 @@ def log_validation(
     else:
         generator = torch.Generator(device=accelerator.device).manual_seed(args.seed)
 
-    if len(args.validation_image) == len(args.validation_prompt) and len(args.validation_image) == len(args.validation_mask):
-        validation_images = args.validation_image
-        validation_prompts = args.validation_prompt
-        validation_masks = args.validation_mask
-    else:
-        raise ValueError(
-            "number of `args.validation_image`, `args.validation_mask`, and `args.validation_prompt` should be checked in `parse_args`"
-        )
-
-    image_logs = []
     inference_ctx = contextlib.nullcontext() if is_final_validation else torch.autocast("cuda")
 
-    # --- Validation metrics ---
-    from validation_metrics import compute_validation_metrics, compute_batch_metrics, format_metrics_table
-    all_pred_frames = []
-    all_gt_frames = []
-    video_names = []
+    # --- Auto-discover all videos in val_data_dir ---
+    val_data_dir = args.val_data_dir
+    images_root = os.path.join(val_data_dir, "JPEGImages_432_240")
+    masks_root = os.path.join(val_data_dir, "test_masks")
 
-    ################ image & mask ################
+    if not os.path.isdir(images_root):
+        logger.warning(f"Validation image dir not found: {images_root}, skipping validation.")
+        del pipeline; gc.collect(); torch.cuda.empty_cache()
+        return []
+
+    video_dirs = sorted([
+        d for d in os.listdir(images_root)
+        if os.path.isdir(os.path.join(images_root, d))
+    ])
+    logger.info(f"Found {len(video_dirs)} validation videos in {images_root}")
+
+    all_psnr = []
+    all_ssim = []
     file_client = FileClient('disk')
-    validation_index = 1
-    for validation_prompt, validation_image, validation_mask in zip(validation_prompts, validation_images, validation_masks):
 
-        frame_list = sorted(os.listdir(validation_image))
+    for video_name in video_dirs:
+        video_image_dir = os.path.join(images_root, video_name)
+        video_mask_dir = os.path.join(masks_root, video_name)
+
+        if not os.path.isdir(video_mask_dir):
+            logger.warning(f"Mask dir not found for {video_name}, skipping.")
+            continue
+
+        frame_list = sorted(os.listdir(video_image_dir))
         v_len = len(frame_list)
         selected_index = list(range(v_len))[:args.nframes]
 
@@ -123,7 +133,7 @@ def log_validation(
         masks = []
         masked_images = []
         for idx in selected_index:
-            frame_path = os.path.join(validation_image, frame_list[idx])
+            frame_path = os.path.join(video_image_dir, frame_list[idx])
 
             ## image
             img_bytes = file_client.get(frame_path, 'input')
@@ -133,7 +143,10 @@ def log_validation(
             frames.append(img)
 
             ## mask
-            mask_path = os.path.join(validation_mask, str(idx).zfill(5) + '.png')
+            mask_path = os.path.join(video_mask_dir, str(idx).zfill(5) + '.png')
+            if not os.path.exists(mask_path):
+                logger.warning(f"Mask not found: {mask_path}, skipping video {video_name}.")
+                break
             mask = Image.open(mask_path).convert('L')
             mask = np.asarray(mask)
             m = np.array(mask > 0).astype(np.uint8)
@@ -144,65 +157,69 @@ def log_validation(
             masks.append(mask)
 
             ## masked image
-            masked_image = np.array(img)*(1-(np.array(mask)[:,:,np.newaxis].astype(np.float32)/255))
+            masked_image = np.array(img) * (1 - (np.array(mask)[:, :, np.newaxis].astype(np.float32) / 255))
             masked_image = Image.fromarray(masked_image.astype(np.uint8))
             masked_images.append(masked_image)
 
-        validation_masks_input = masks
-        validation_images_input = masked_images
-        ##########################################
+        # Skip if frame loading was incomplete
+        if len(frames) != len(selected_index) or len(masks) != len(selected_index):
+            continue
 
         ################ forward ################
-        with inference_ctx:
-            images = pipeline(
-                num_frames=args.nframes, prompt=validation_prompt, images=validation_images_input, 
-                masks=validation_masks_input, num_inference_steps=20, generator=generator,
-                guidance_scale=0.0
-            ).frames
-
-        gif_path = f"{args.logging_dir}/samples/sample-{step}/{validation_index}.gif"
-        save_videos_grid(images, gif_path)
-
-        # --- Collect frames for metrics ---
-        video_name = os.path.basename(validation_image)
-        video_names.append(video_name)
-        pred_np = [np.array(img, dtype=np.uint8) for img in images]
-        gt_np = [np.array(img.resize((pred_np[0].shape[1], pred_np[0].shape[0]), Image.BILINEAR), dtype=np.uint8) for img in frames[:len(pred_np)]]
-        all_pred_frames.append(pred_np)
-        all_gt_frames.append(gt_np)
-
-        # --- Upload validation video to W&B ---
-        if is_wandb_available() and accelerator.is_main_process:
-            try:
-                wandb.log({
-                    f"val/video_{video_name}": wandb.Video(gif_path, fps=8, format="gif"),
-                }, step=step)
-            except Exception as e:
-                logger.warning(f"Failed to log video to W&B: {e}")
-
-        validation_index = validation_index + 1
+        try:
+            with inference_ctx:
+                images = pipeline(
+                    num_frames=args.nframes, prompt="clean background",
+                    images=masked_images, masks=masks,
+                    num_inference_steps=20, generator=generator,
+                    guidance_scale=0.0,
+                ).frames
+        except Exception as e:
+            logger.warning(f"Inference failed for {video_name}: {e}")
+            continue
         ##########################################
 
-    # --- Compute and log validation metrics ---
-    if all_pred_frames and all_gt_frames:
-        try:
-            batch_results = compute_batch_metrics(all_pred_frames, all_gt_frames, video_names)
-            table_str = format_metrics_table(batch_results, step)
-            logger.info(table_str)
+        # --- Compute per-frame PSNR/SSIM using inference.metrics ---
+        pred_np = [np.array(img, dtype=np.uint8) for img in images]
+        gt_np = [
+            np.array(
+                img.resize((pred_np[0].shape[1], pred_np[0].shape[0]), Image.BILINEAR),
+                dtype=np.uint8,
+            )
+            for img in frames[: len(pred_np)]
+        ]
 
-            if is_wandb_available() and accelerator.is_main_process:
-                wandb.log({
-                    "val/psnr_mean": batch_results["psnr_mean"],
-                    "val/ssim_mean": batch_results["ssim_mean"],
-                }, step=step)
-        except Exception as e:
-            logger.warning(f"Failed to compute validation metrics: {e}")
+        video_psnr_list = []
+        video_ssim_list = []
+        for pred_frame, gt_frame in zip(pred_np, gt_np):
+            video_psnr_list.append(compute_psnr(gt_frame, pred_frame))
+            video_ssim_list.append(compute_ssim(gt_frame, pred_frame))
+
+        video_psnr = float(np.mean(video_psnr_list))
+        video_ssim = float(np.mean(video_ssim_list))
+        all_psnr.append(video_psnr)
+        all_ssim.append(video_ssim)
+        logger.info(f"  [{video_name}] PSNR={video_psnr:.4f}  SSIM={video_ssim:.4f}")
+
+    # --- Log average metrics to W&B ---
+    if all_psnr and all_ssim:
+        avg_psnr = float(np.mean(all_psnr))
+        avg_ssim = float(np.mean(all_ssim))
+        logger.info(f"Validation Step {step}: avg PSNR={avg_psnr:.4f}, avg SSIM={avg_ssim:.4f} ({len(all_psnr)} videos)")
+
+        if is_wandb_available() and accelerator.is_main_process:
+            wandb.log({
+                "val/psnr_mean": avg_psnr,
+                "val/ssim_mean": avg_ssim,
+            }, step=step)
+    else:
+        logger.warning("No valid validation results collected.")
 
     del pipeline
     gc.collect()
     torch.cuda.empty_cache()
 
-    return image_logs
+    return []
 
 
 def import_model_class_from_model_name_or_path(base_model_name_or_path: str, revision: str):
@@ -541,6 +558,12 @@ def parse_args(input_args=None):
             "A set of paths to the paintingnet conditioning image be evaluated every `--validation_steps`"
             " and logged to `--report_to`. Require a matching number of `--validation_prompt`s."
         ),
+    )
+    parser.add_argument(
+        "--val_data_dir",
+        type=str,
+        default="data_val",
+        help="Root directory of validation dataset containing JPEGImages_432_240/ and test_masks/ subdirs.",
     )
     parser.add_argument(
         "--validation_steps",
