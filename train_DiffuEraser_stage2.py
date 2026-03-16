@@ -115,7 +115,6 @@ def log_validation(
 
     all_psnr = []
     all_ssim = []
-    file_client = FileClient('disk')
 
     for video_name in video_dirs:
         video_image_dir = os.path.join(images_root, video_name)
@@ -136,8 +135,10 @@ def log_validation(
             frame_path = os.path.join(video_image_dir, frame_list[idx])
 
             ## image
-            img_bytes = file_client.get(frame_path, 'input')
-            img = imfrombytes(img_bytes, float32=False)
+            img = cv2.imread(frame_path)
+            if img is None:
+                logger.warning(f"Failed to read image: {frame_path}, skipping video {video_name}.")
+                break
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(img)
             frames.append(img)
