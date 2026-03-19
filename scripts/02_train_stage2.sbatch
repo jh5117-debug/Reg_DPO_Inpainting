@@ -28,6 +28,7 @@ SEED=${SEED:-42}
 MIXED_PRECISION=${MIXED_PRECISION:-fp16}
 WANDB_PROJECT=${WANDB_PROJECT:-DPO_Diffueraser}
 PRETRAINED_STAGE1=${PRETRAINED_STAGE1:-}
+OUTPUT_DIR=${OUTPUT_DIR:-${PROJECT_ROOT}/finetune-stage2}
 
 source ~/.bashrc
 conda activate diffueraser
@@ -56,3 +57,4 @@ python scripts/run_train_stage2.py \
   --mixed_precision ${MIXED_PRECISION} \
   --wandb_project ${WANDB_PROJECT} \
   ${STAGE1_ARG}
+

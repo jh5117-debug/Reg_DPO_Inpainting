@@ -4,6 +4,7 @@
 import argparse
 import contextlib
 import gc
+import warnings
 import logging
 import math
 import os
@@ -62,26 +63,68 @@ def save_videos_grid(video, path: str, fps=8):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     imageio.mimsave(path, outputs, fps=fps)
 
+def print_model_info(models_dict, logger):
+    """打印模型参数信息，方便 debug。"""
+    logger.info("====== Model Parameters ======")
+    for name, model in models_dict.items():
+        total = sum(p.numel() for p in model.parameters())
+        trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        frozen = total - trainable
+        status = "🔥 trainable" if trainable > 0 else "❄️ frozen"
+        logger.info(f"  {name:15s}: total={total/1e6:>7.1f}M  trainable={trainable/1e6:>7.1f}M  frozen={frozen/1e6:>7.1f}M  [{status}]")
+    logger.info("==============================")
+
+
+def format_metrics_table(step, metrics_dict, n_videos):
+    """生成美观的 metrics 输出表格。"""
+    headers = list(metrics_dict.keys())
+    values = list(metrics_dict.values())
+    col_w = max(10, max(len(h) for h in headers) + 2)
+    n_cols = len(headers)
+    table_w = (col_w + 1) * n_cols + 1
+
+    lines = []
+    title = f" Validation @ Step {step} ({n_videos} videos) "
+    lines.append(f"\n{'=' * table_w}")
+    lines.append(title.center(table_w))
+    lines.append('=' * table_w)
+    lines.append('|'.join(h.center(col_w) for h in [''] + headers))
+    lines.append('-' * table_w)
+    lines.append('|'.join(v.center(col_w) for v in ['Avg'] + [f'{v:.4f}' for v in values]))
+    lines.append('=' * table_w)
+    return '\n'.join(lines)
+
+
 def log_validation(
     vae, text_encoder, tokenizer, unet, brushnet, args, accelerator, weight_dtype, step, is_final_validation=False
 ):
-    logger.info("Running validation... ")
+    logger.info("Running validation...")
 
-    # --- Use inference.metrics for PSNR/SSIM (as required) ---
     from inference.metrics import compute_psnr, compute_ssim
 
+    # 尝试导入时序指标
+    try:
+        from inference.metrics import MetricsCalculator
+        has_temporal_metrics = True
+    except ImportError:
+        has_temporal_metrics = False
+        logger.warning("MetricsCalculator not available, temporal metrics will be skipped.")
+
     ################ pipeline ################
-    pipeline = StableDiffusionDiffuEraserPipelineStageTwo.from_pretrained(
-        args.base_model_name_or_path,
-        vae=accelerator.unwrap_model(vae),
-        text_encoder=accelerator.unwrap_model(text_encoder),
-        tokenizer=tokenizer,
-        unet=accelerator.unwrap_model(unet),
-        brushnet=accelerator.unwrap_model(brushnet),
-        revision=args.revision,
-        variant=args.variant,
-        torch_dtype=weight_dtype,
-    )
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=".*scale.*deprecated.*")
+        warnings.filterwarnings("ignore", message=".*was not found in config.*")
+        pipeline = StableDiffusionDiffuEraserPipelineStageTwo.from_pretrained(
+            args.base_model_name_or_path,
+            vae=accelerator.unwrap_model(vae),
+            text_encoder=accelerator.unwrap_model(text_encoder),
+            tokenizer=tokenizer,
+            unet=accelerator.unwrap_model(unet),
+            brushnet=accelerator.unwrap_model(brushnet),
+            revision=args.revision,
+            variant=args.variant,
+            torch_dtype=weight_dtype,
+        )
     pipeline.scheduler = UniPCMultistepScheduler.from_config(pipeline.scheduler.config)
     pipeline = pipeline.to(accelerator.device)
     pipeline.set_progress_bar_config(disable=True)
@@ -97,13 +140,12 @@ def log_validation(
 
     inference_ctx = contextlib.nullcontext() if is_final_validation else torch.autocast("cuda")
 
-    # --- Auto-discover all videos in val_data_dir ---
     val_data_dir = args.val_data_dir
     images_root = os.path.join(val_data_dir, "JPEGImages_432_240")
     masks_root = os.path.join(val_data_dir, "test_masks")
 
     if not os.path.isdir(images_root):
-        logger.warning(f"Validation image dir not found: {images_root}, skipping validation.")
+        logger.warning(f"Validation image dir not found: {images_root}, skipping.")
         del pipeline; gc.collect(); torch.cuda.empty_cache()
         return []
 
@@ -111,10 +153,11 @@ def log_validation(
         d for d in os.listdir(images_root)
         if os.path.isdir(os.path.join(images_root, d))
     ])
-    logger.info(f"Found {len(video_dirs)} validation videos in {images_root}")
+    logger.info(f"Found {len(video_dirs)} validation videos")
 
-    all_psnr = []
-    all_ssim = []
+    all_psnr, all_ssim = [], []
+    # 收集所有视频帧用于后续时序指标计算
+    all_pred_videos, all_gt_videos = [], []
     file_client = FileClient('disk')
 
     for video_name in video_dirs:
@@ -122,103 +165,135 @@ def log_validation(
         video_mask_dir = os.path.join(masks_root, video_name)
 
         if not os.path.isdir(video_mask_dir):
-            logger.warning(f"Mask dir not found for {video_name}, skipping.")
             continue
 
         frame_list = sorted(os.listdir(video_image_dir))
-        v_len = len(frame_list)
-        selected_index = list(range(v_len))[:args.nframes]
+        selected_index = list(range(len(frame_list)))[:args.nframes]
 
-        frames = []
-        masks = []
-        masked_images = []
+        frames, masks, masked_images = [], [], []
         for idx in selected_index:
             frame_path = os.path.join(video_image_dir, frame_list[idx])
-
-            ## image
             img_bytes = file_client.get(frame_path, 'input')
             img = imfrombytes(img_bytes, float32=False)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(img)
             frames.append(img)
 
-            ## mask
             mask_path = os.path.join(video_mask_dir, str(idx).zfill(5) + '.png')
             if not os.path.exists(mask_path):
-                logger.warning(f"Mask not found: {mask_path}, skipping video {video_name}.")
                 break
             mask = Image.open(mask_path).convert('L')
             mask = np.asarray(mask)
             m = np.array(mask > 0).astype(np.uint8)
-            m = cv2.dilate(m,
-                           cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3)),
-                           iterations=4)
+            m = cv2.dilate(m, cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3)), iterations=4)
             mask = Image.fromarray(m * 255)
             masks.append(mask)
 
-            ## masked image
             masked_image = np.array(img) * (1 - (np.array(mask)[:, :, np.newaxis].astype(np.float32) / 255))
-            masked_image = Image.fromarray(masked_image.astype(np.uint8))
-            masked_images.append(masked_image)
+            masked_images.append(Image.fromarray(masked_image.astype(np.uint8)))
 
-        # Skip if frame loading was incomplete
         if len(frames) != len(selected_index) or len(masks) != len(selected_index):
             continue
 
-        ################ forward ################
         try:
             with inference_ctx:
-                images = pipeline(
-                    num_frames=args.nframes, prompt="clean background",
-                    images=masked_images, masks=masks,
-                    num_inference_steps=20, generator=generator,
-                    guidance_scale=0.0,
-                ).frames
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", message=".*scale.*deprecated.*")
+                    images = pipeline(
+                        num_frames=args.nframes, prompt="clean background",
+                        images=masked_images, masks=masks,
+                        num_inference_steps=20, generator=generator,
+                        guidance_scale=0.0,
+                    ).frames
         except Exception as e:
             logger.warning(f"Inference failed for {video_name}: {e}")
             continue
-        ##########################################
 
-        # --- Compute per-frame PSNR/SSIM using inference.metrics ---
         pred_np = [np.array(img, dtype=np.uint8) for img in images]
         gt_np = [
-            np.array(
-                img.resize((pred_np[0].shape[1], pred_np[0].shape[0]), Image.BILINEAR),
-                dtype=np.uint8,
-            )
-            for img in frames[: len(pred_np)]
+            np.array(img.resize((pred_np[0].shape[1], pred_np[0].shape[0]), Image.BILINEAR), dtype=np.uint8)
+            for img in frames[:len(pred_np)]
         ]
 
-        video_psnr_list = []
-        video_ssim_list = []
-        for pred_frame, gt_frame in zip(pred_np, gt_np):
-            video_psnr_list.append(compute_psnr(gt_frame, pred_frame))
-            video_ssim_list.append(compute_ssim(gt_frame, pred_frame))
+        v_psnr = [compute_psnr(gt, pred) for gt, pred in zip(gt_np, pred_np)]
+        v_ssim = [compute_ssim(gt, pred) for gt, pred in zip(gt_np, pred_np)]
+        all_psnr.append(float(np.mean(v_psnr)))
+        all_ssim.append(float(np.mean(v_ssim)))
 
-        video_psnr = float(np.mean(video_psnr_list))
-        video_ssim = float(np.mean(video_ssim_list))
-        all_psnr.append(video_psnr)
-        all_ssim.append(video_ssim)
-        logger.info(f"  [{video_name}] PSNR={video_psnr:.4f}  SSIM={video_ssim:.4f}")
+        # 保存用于时序指标
+        all_pred_videos.append(pred_np)
+        all_gt_videos.append(gt_np)
 
-    # --- Log average metrics to W&B ---
+    # 构建 metrics 字典
+    metrics_result = {}
+    wandb_metrics = {}
     if all_psnr and all_ssim:
         avg_psnr = float(np.mean(all_psnr))
         avg_ssim = float(np.mean(all_ssim))
-        logger.info(f"Validation Step {step}: avg PSNR={avg_psnr:.4f}, avg SSIM={avg_ssim:.4f} ({len(all_psnr)} videos)")
+        metrics_result['PSNR'] = avg_psnr
+        metrics_result['SSIM'] = avg_ssim
+        wandb_metrics['val/psnr_mean'] = avg_psnr
+        wandb_metrics['val/ssim_mean'] = avg_ssim
+
+    # 计算时序指标（VFID/Ewarp）
+    if has_temporal_metrics and all_pred_videos:
+        try:
+            mc = MetricsCalculator(device=accelerator.device)
+
+            # Ewarp: 逐视频计算
+            all_ewarp = []
+            if mc._ewarp_metric is not None:
+                for pred_v, gt_v in zip(all_pred_videos, all_gt_videos):
+                    try:
+                        ewarp = mc._ewarp_metric.compute(pred_v, gt_frames_u8_rgb=gt_v)
+                        if ewarp is not None:
+                            all_ewarp.append(float(ewarp))
+                    except Exception:
+                        pass
+                if all_ewarp:
+                    avg_ewarp = float(np.mean(all_ewarp))
+                    metrics_result['Ewarp'] = avg_ewarp
+                    wandb_metrics['val/ewarp_mean'] = avg_ewarp
+
+            # VFID: 收集 I3D activations 后计算 FID
+            if mc._i3d_model is not None:
+                from inference.metrics import calculate_i3d_activations, calculate_vfid
+                all_ori_acts, all_comp_acts = [], []
+                for pred_v, gt_v in zip(all_pred_videos, all_gt_videos):
+                    try:
+                        pred_pil = [Image.fromarray(f) for f in pred_v]
+                        gt_pil = [Image.fromarray(f) for f in gt_v]
+                        ori_act, comp_act = calculate_i3d_activations(
+                            gt_pil, pred_pil, mc._i3d_model, mc.device
+                        )
+                        all_ori_acts.append(ori_act)
+                        all_comp_acts.append(comp_act)
+                    except Exception:
+                        pass
+                if all_ori_acts and all_comp_acts:
+                    try:
+                        vfid = calculate_vfid(np.vstack(all_ori_acts), np.vstack(all_comp_acts))
+                        metrics_result['VFID'] = float(vfid)
+                        wandb_metrics['val/vfid_mean'] = float(vfid)
+                    except Exception:
+                        pass
+
+            del mc
+        except Exception as e:
+            logger.warning(f"Temporal metrics computation failed (will skip): {e}")
+
+    if metrics_result:
+        table = format_metrics_table(step, metrics_result, len(all_psnr))
+        logger.info(table)
 
         if is_wandb_available() and accelerator.is_main_process:
-            wandb.log({
-                "val/psnr_mean": avg_psnr,
-                "val/ssim_mean": avg_ssim,
-            }, step=step)
+            wandb.log(wandb_metrics, step=step)
     else:
         logger.warning("No valid validation results collected.")
 
     del pipeline
     gc.collect()
     torch.cuda.empty_cache()
-
     return []
 
 
@@ -273,7 +348,14 @@ def parse_args(input_args=None):
         "--motion_adapter_path",
         type=str,
         default=None,
-        help="Path to pretrained motion adapter or model identifier from huggingface.co/models.",
+        help="(Deprecated) Path to pretrained motion adapter. No longer used when --baseline_unet_path is set.",
+    )
+    parser.add_argument(
+        "--baseline_unet_path",
+        type=str,
+        default=None,
+        help="Path to DiffuEraser baseline weights (containing unet_main/ subdir with UNetMotionModel). "
+             "When set, the motion module is initialized from baseline instead of AnimateDiff.",
     )
     parser.add_argument(
         "--vae_path",
@@ -714,15 +796,59 @@ def main(args):
     vae = AutoencoderKL.from_pretrained(
         args.vae_path, subfolder="vae", revision=args.revision, variant=args.variant
     )
-    unet = UNet2DConditionModel.from_pretrained(
-        args.pretrained_stage1, subfolder="unet_main", variant=args.variant
-    )
     logger.info("Loading existing brushnet weights from pretrained_stage1")
     brushnet = BrushNetModel.from_pretrained(args.pretrained_stage1, subfolder="brushnet")
 
     ########################### add  motion module ###########################
-    motion_adapter = MotionAdapter.from_pretrained(args.motion_adapter_path)
-    unet_main = UNetMotionModel.from_unet2d(unet, motion_adapter)
+    if args.baseline_unet_path:
+        # 从 DiffuEraser baseline 加载完整 UNetMotionModel（含已训练的 motion module）
+        logger.info(f"Loading baseline UNetMotionModel from {args.baseline_unet_path}")
+        unet_main = UNetMotionModel.from_pretrained(args.baseline_unet_path, subfolder="unet_main")
+
+        # 加载 Stage 1 finetune 的 2D 权重，用来覆盖 baseline 中的 2D 部分
+        logger.info(f"Overriding 2D weights from Stage 1: {args.pretrained_stage1}")
+        stage1_unet = UNet2DConditionModel.from_pretrained(
+            args.pretrained_stage1, subfolder="unet_main", variant=args.variant
+        )
+
+        # 逐模块替换 2D 权重（与 UNetMotionModel.from_unet2d 的拷贝逻辑一致）
+        unet_main.conv_in.load_state_dict(stage1_unet.conv_in.state_dict())
+        unet_main.time_proj.load_state_dict(stage1_unet.time_proj.state_dict())
+        unet_main.time_embedding.load_state_dict(stage1_unet.time_embedding.state_dict())
+
+        for i, down_block in enumerate(stage1_unet.down_blocks):
+            unet_main.down_blocks[i].resnets.load_state_dict(down_block.resnets.state_dict())
+            if hasattr(unet_main.down_blocks[i], "attentions"):
+                unet_main.down_blocks[i].attentions.load_state_dict(down_block.attentions.state_dict())
+            if unet_main.down_blocks[i].downsamplers:
+                unet_main.down_blocks[i].downsamplers.load_state_dict(down_block.downsamplers.state_dict())
+
+        for i, up_block in enumerate(stage1_unet.up_blocks):
+            unet_main.up_blocks[i].resnets.load_state_dict(up_block.resnets.state_dict())
+            if hasattr(unet_main.up_blocks[i], "attentions"):
+                unet_main.up_blocks[i].attentions.load_state_dict(up_block.attentions.state_dict())
+            if unet_main.up_blocks[i].upsamplers:
+                unet_main.up_blocks[i].upsamplers.load_state_dict(up_block.upsamplers.state_dict())
+
+        unet_main.mid_block.resnets.load_state_dict(stage1_unet.mid_block.resnets.state_dict())
+        unet_main.mid_block.attentions.load_state_dict(stage1_unet.mid_block.attentions.state_dict())
+
+        if stage1_unet.conv_norm_out is not None:
+            unet_main.conv_norm_out.load_state_dict(stage1_unet.conv_norm_out.state_dict())
+        if stage1_unet.conv_act is not None:
+            unet_main.conv_act.load_state_dict(stage1_unet.conv_act.state_dict())
+        unet_main.conv_out.load_state_dict(stage1_unet.conv_out.state_dict())
+
+        del stage1_unet  # 释放内存
+        logger.info("Successfully loaded baseline motion module + Stage 1 2D weights")
+    else:
+        # Fallback: 原始逻辑（从 AnimateDiff 加载 motion module）
+        logger.info("No baseline_unet_path provided, falling back to AnimateDiff motion adapter")
+        unet = UNet2DConditionModel.from_pretrained(
+            args.pretrained_stage1, subfolder="unet_main", variant=args.variant
+        )
+        motion_adapter = MotionAdapter.from_pretrained(args.motion_adapter_path)
+        unet_main = UNetMotionModel.from_unet2d(unet, motion_adapter)
     ####################################################################
 
     vae.requires_grad_(False)
@@ -894,6 +1020,9 @@ def main(args):
     logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
     logger.info(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
     logger.info(f"  Total optimization steps = {args.max_train_steps}")
+    print_model_info({'unet_main': unet_main, 'brushnet': brushnet, 'vae': vae, 'text_encoder': text_encoder}, logger)
+    warnings.filterwarnings("ignore", message=".*scale.*deprecated.*")
+    warnings.filterwarnings("ignore", message=".*was not found in config.*")
     global_step = 0
     first_epoch = 0
 

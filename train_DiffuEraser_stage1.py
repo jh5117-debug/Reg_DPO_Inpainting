@@ -4,6 +4,7 @@
 import argparse
 import contextlib
 import gc
+import warnings
 import logging
 import math
 import os
@@ -60,26 +61,60 @@ def save_videos_grid(video, path: str, fps=8):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     imageio.mimsave(path, outputs, fps=fps)
 
+def print_model_info(models_dict, logger):
+    """打印模型参数信息，方便 debug。"""
+    logger.info("====== Model Parameters ======")
+    for name, model in models_dict.items():
+        total = sum(p.numel() for p in model.parameters())
+        trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        frozen = total - trainable
+        status = "🔥 trainable" if trainable > 0 else "❄️ frozen"
+        logger.info(f"  {name:15s}: total={total/1e6:>7.1f}M  trainable={trainable/1e6:>7.1f}M  frozen={frozen/1e6:>7.1f}M  [{status}]")
+    logger.info("==============================")
+
+
+def format_metrics_table(step, metrics_dict, n_videos):
+    """生成美观的 metrics 输出表格。"""
+    headers = list(metrics_dict.keys())
+    values = list(metrics_dict.values())
+    col_w = max(10, max(len(h) for h in headers) + 2)
+    n_cols = len(headers)
+    table_w = (col_w + 1) * n_cols + 1
+
+    lines = []
+    title = f" Validation @ Step {step} ({n_videos} videos) "
+    lines.append(f"\n{'=' * table_w}")
+    lines.append(title.center(table_w))
+    lines.append('=' * table_w)
+    lines.append('|'.join(h.center(col_w) for h in [''] + headers))
+    lines.append('-' * table_w)
+    lines.append('|'.join(v.center(col_w) for v in ['Avg'] + [f'{v:.4f}' for v in values]))
+    lines.append('=' * table_w)
+    return '\n'.join(lines)
+
+
 def log_validation(
     vae, text_encoder, tokenizer, unet, brushnet, args, accelerator, weight_dtype, step, is_final_validation=False
 ):
-    logger.info("Running validation... ")
+    logger.info("Running validation...")
 
-    # --- Use inference.metrics for PSNR/SSIM (as required) ---
     from inference.metrics import compute_psnr, compute_ssim
 
     ################ pipeline ################
-    pipeline = StableDiffusionDiffuEraserPipelineStageOne.from_pretrained(
-        args.base_model_name_or_path,
-        vae=accelerator.unwrap_model(vae),
-        text_encoder=accelerator.unwrap_model(text_encoder),
-        tokenizer=tokenizer,
-        unet=accelerator.unwrap_model(unet),
-        brushnet=accelerator.unwrap_model(brushnet),
-        revision=args.revision,
-        variant=args.variant,
-        torch_dtype=weight_dtype,
-    )
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=".*scale.*deprecated.*")
+        warnings.filterwarnings("ignore", message=".*was not found in config.*")
+        pipeline = StableDiffusionDiffuEraserPipelineStageOne.from_pretrained(
+            args.base_model_name_or_path,
+            vae=accelerator.unwrap_model(vae),
+            text_encoder=accelerator.unwrap_model(text_encoder),
+            tokenizer=tokenizer,
+            unet=accelerator.unwrap_model(unet),
+            brushnet=accelerator.unwrap_model(brushnet),
+            revision=args.revision,
+            variant=args.variant,
+            torch_dtype=weight_dtype,
+        )
     pipeline.scheduler = UniPCMultistepScheduler.from_config(pipeline.scheduler.config)
     pipeline = pipeline.to(accelerator.device)
     pipeline.set_progress_bar_config(disable=True)
@@ -95,13 +130,12 @@ def log_validation(
 
     inference_ctx = contextlib.nullcontext() if is_final_validation else torch.autocast("cuda")
 
-    # --- Auto-discover all videos in val_data_dir ---
     val_data_dir = args.val_data_dir
     images_root = os.path.join(val_data_dir, "JPEGImages_432_240")
     masks_root = os.path.join(val_data_dir, "test_masks")
 
     if not os.path.isdir(images_root):
-        logger.warning(f"Validation image dir not found: {images_root}, skipping validation.")
+        logger.warning(f"Validation image dir not found: {images_root}, skipping.")
         del pipeline; gc.collect(); torch.cuda.empty_cache()
         return []
 
@@ -111,8 +145,7 @@ def log_validation(
     ])
     logger.info(f"Found {len(video_dirs)} validation videos in {images_root}")
 
-    all_psnr = []
-    all_ssim = []
+    all_psnr, all_ssim = [], []
     file_client = FileClient('disk')
 
     for video_name in video_dirs:
@@ -120,103 +153,75 @@ def log_validation(
         video_mask_dir = os.path.join(masks_root, video_name)
 
         if not os.path.isdir(video_mask_dir):
-            logger.warning(f"Mask dir not found for {video_name}, skipping.")
             continue
 
         frame_list = sorted(os.listdir(video_image_dir))
-        v_len = len(frame_list)
-        selected_index = list(range(v_len))[:args.nframes]
+        selected_index = list(range(len(frame_list)))[:args.nframes]
 
-        frames = []
-        masks = []
-        masked_images = []
+        frames, masks, masked_images = [], [], []
         for idx in selected_index:
             frame_path = os.path.join(video_image_dir, frame_list[idx])
-
-            ## image
             img_bytes = file_client.get(frame_path, 'input')
             img = imfrombytes(img_bytes, float32=False)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(img)
             frames.append(img)
 
-            ## mask
             mask_path = os.path.join(video_mask_dir, str(idx).zfill(5) + '.png')
             if not os.path.exists(mask_path):
-                logger.warning(f"Mask not found: {mask_path}, skipping video {video_name}.")
                 break
             mask = Image.open(mask_path).convert('L')
             mask = np.asarray(mask)
             m = np.array(mask > 0).astype(np.uint8)
-            m = cv2.dilate(m,
-                           cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3)),
-                           iterations=4)
+            m = cv2.dilate(m, cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3)), iterations=4)
             mask = Image.fromarray(m * 255)
             masks.append(mask)
 
-            ## masked image
             masked_image = np.array(img) * (1 - (np.array(mask)[:, :, np.newaxis].astype(np.float32) / 255))
-            masked_image = Image.fromarray(masked_image.astype(np.uint8))
-            masked_images.append(masked_image)
+            masked_images.append(Image.fromarray(masked_image.astype(np.uint8)))
 
-        # Skip if frame loading was incomplete
         if len(frames) != len(selected_index) or len(masks) != len(selected_index):
             continue
 
-        ################ forward ################
         try:
             with inference_ctx:
-                images = pipeline(
-                    num_frames=args.nframes, prompt="clean background",
-                    images=masked_images, masks=masks,
-                    num_inference_steps=50, generator=generator,
-                    guidance_scale=0.0,
-                ).frames
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", message=".*scale.*deprecated.*")
+                    images = pipeline(
+                        num_frames=args.nframes, prompt="clean background",
+                        images=masked_images, masks=masks,
+                        num_inference_steps=50, generator=generator,
+                        guidance_scale=0.0,
+                    ).frames
         except Exception as e:
             logger.warning(f"Inference failed for {video_name}: {e}")
             continue
-        ##########################################
 
-        # --- Compute per-frame PSNR/SSIM using inference.metrics ---
         pred_np = [np.array(img, dtype=np.uint8) for img in images]
         gt_np = [
-            np.array(
-                img.resize((pred_np[0].shape[1], pred_np[0].shape[0]), Image.BILINEAR),
-                dtype=np.uint8,
-            )
-            for img in frames[: len(pred_np)]
+            np.array(img.resize((pred_np[0].shape[1], pred_np[0].shape[0]), Image.BILINEAR), dtype=np.uint8)
+            for img in frames[:len(pred_np)]
         ]
 
-        video_psnr_list = []
-        video_ssim_list = []
-        for pred_frame, gt_frame in zip(pred_np, gt_np):
-            video_psnr_list.append(compute_psnr(gt_frame, pred_frame))
-            video_ssim_list.append(compute_ssim(gt_frame, pred_frame))
+        v_psnr = [compute_psnr(gt, pred) for gt, pred in zip(gt_np, pred_np)]
+        v_ssim = [compute_ssim(gt, pred) for gt, pred in zip(gt_np, pred_np)]
+        all_psnr.append(float(np.mean(v_psnr)))
+        all_ssim.append(float(np.mean(v_ssim)))
 
-        video_psnr = float(np.mean(video_psnr_list))
-        video_ssim = float(np.mean(video_ssim_list))
-        all_psnr.append(video_psnr)
-        all_ssim.append(video_ssim)
-        logger.info(f"  [{video_name}] PSNR={video_psnr:.4f}  SSIM={video_ssim:.4f}")
-
-    # --- Log average metrics to W&B ---
     if all_psnr and all_ssim:
         avg_psnr = float(np.mean(all_psnr))
         avg_ssim = float(np.mean(all_ssim))
-        logger.info(f"Validation Step {step}: avg PSNR={avg_psnr:.4f}, avg SSIM={avg_ssim:.4f} ({len(all_psnr)} videos)")
+        table = format_metrics_table(step, {'PSNR': avg_psnr, 'SSIM': avg_ssim}, len(all_psnr))
+        logger.info(table)
 
         if is_wandb_available() and accelerator.is_main_process:
-            wandb.log({
-                "val/psnr_mean": avg_psnr,
-                "val/ssim_mean": avg_ssim,
-            }, step=step)
+            wandb.log({"val/psnr_mean": avg_psnr, "val/ssim_mean": avg_ssim}, step=step)
     else:
         logger.warning("No valid validation results collected.")
 
     del pipeline
     gc.collect()
     torch.cuda.empty_cache()
-
     return []
 
 
@@ -267,6 +272,13 @@ def parse_args(input_args=None):
         default=None,
         help="Path to pretrained brushnet model or model identifier from huggingface.co/models."
         " If not specified brushnet weights are initialized from unet.",
+    )
+    parser.add_argument(
+        "--baseline_unet_path",
+        type=str,
+        default=None,
+        help="Path to DiffuEraser baseline weights dir (containing unet_main/). "
+             "When set, UNet2D is initialized from baseline's trained 2D weights.",
     )
     parser.add_argument(
         "--vae_path",
@@ -714,9 +726,50 @@ def main(args):
         args.vae_path, subfolder="vae", revision=args.revision, variant=args.variant
     )
 
-    if args.pretrained_stage1_path:
+    if args.baseline_unet_path:
+        # 从 DiffuEraser baseline 的 UNetMotionModel 中提取 2D 权重
+        from libs.unet_motion_model import UNetMotionModel
+        logger.info(f"Loading baseline UNetMotionModel from {args.baseline_unet_path}")
+        baseline_motion_unet = UNetMotionModel.from_pretrained(args.baseline_unet_path, subfolder="unet_main")
+
+        # 创建 UNet2D 获得正确 config 结构
+        unet_main = UNet2DConditionModel.from_pretrained(
+            args.base_model_name_or_path, subfolder="unet", revision=args.revision, variant=args.variant
+        )
+
+        # 从 baseline UNetMotionModel 拷贝 2D 权重到 UNet2DConditionModel
+        logger.info("Extracting 2D weights from baseline UNetMotionModel...")
+        unet_main.conv_in.load_state_dict(baseline_motion_unet.conv_in.state_dict())
+        unet_main.time_proj.load_state_dict(baseline_motion_unet.time_proj.state_dict())
+        unet_main.time_embedding.load_state_dict(baseline_motion_unet.time_embedding.state_dict())
+
+        for i, down_block in enumerate(baseline_motion_unet.down_blocks):
+            unet_main.down_blocks[i].resnets.load_state_dict(down_block.resnets.state_dict())
+            if hasattr(unet_main.down_blocks[i], "attentions") and hasattr(down_block, "attentions"):
+                unet_main.down_blocks[i].attentions.load_state_dict(down_block.attentions.state_dict())
+            if unet_main.down_blocks[i].downsamplers and down_block.downsamplers:
+                unet_main.down_blocks[i].downsamplers.load_state_dict(down_block.downsamplers.state_dict())
+
+        for i, up_block in enumerate(baseline_motion_unet.up_blocks):
+            unet_main.up_blocks[i].resnets.load_state_dict(up_block.resnets.state_dict())
+            if hasattr(unet_main.up_blocks[i], "attentions") and hasattr(up_block, "attentions"):
+                unet_main.up_blocks[i].attentions.load_state_dict(up_block.attentions.state_dict())
+            if unet_main.up_blocks[i].upsamplers and up_block.upsamplers:
+                unet_main.up_blocks[i].upsamplers.load_state_dict(up_block.upsamplers.state_dict())
+
+        unet_main.mid_block.resnets.load_state_dict(baseline_motion_unet.mid_block.resnets.state_dict())
+        unet_main.mid_block.attentions.load_state_dict(baseline_motion_unet.mid_block.attentions.state_dict())
+
+        if baseline_motion_unet.conv_norm_out is not None:
+            unet_main.conv_norm_out.load_state_dict(baseline_motion_unet.conv_norm_out.state_dict())
+        if hasattr(baseline_motion_unet, 'conv_act') and baseline_motion_unet.conv_act is not None:
+            unet_main.conv_act.load_state_dict(baseline_motion_unet.conv_act.state_dict())
+        unet_main.conv_out.load_state_dict(baseline_motion_unet.conv_out.state_dict())
+
+        del baseline_motion_unet
+        logger.info("Successfully extracted baseline 2D weights into UNet2DConditionModel")
+    elif args.pretrained_stage1_path:
         logger.info(f"Loading pretrained BrushNet for finetuning from {args.pretrained_stage1_path}")
-        # UNet2D always loads from base model (diffuEraser/unet_main is UNetMotionModel, not UNet2D)
         unet_main = UNet2DConditionModel.from_pretrained(
             args.base_model_name_or_path, subfolder="unet", revision=args.revision, variant=args.variant
         )
@@ -728,6 +781,12 @@ def main(args):
         unet_main = UNet2DConditionModel.from_pretrained(
             args.base_model_name_or_path, subfolder="unet", revision=args.revision, variant=args.variant
         )
+
+    # BrushNet 加载（当使用 baseline_unet_path 时，始终从 baseline 的 brushnet 加载）
+    if args.baseline_unet_path:
+        brushnet = BrushNetModel.from_pretrained(args.baseline_unet_path, subfolder="brushnet")
+        logger.info(f"Loaded baseline BrushNet from {args.baseline_unet_path}")
+    elif not args.pretrained_stage1_path:
         if args.brushnet_model_name_or_path:
             logger.info("Loading existing brushnet weights")
             brushnet = BrushNetModel.from_pretrained(args.brushnet_model_name_or_path)
@@ -910,6 +969,10 @@ def main(args):
     logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
     logger.info(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
     logger.info(f"  Total optimization steps = {args.max_train_steps}")
+    print_model_info({'unet_main': unet_main, 'brushnet': brushnet, 'vae': vae, 'text_encoder': text_encoder}, logger)
+    # 抑制 diffusers 内部的 scale deprecation 和 config 警告
+    warnings.filterwarnings("ignore", message=".*scale.*deprecated.*")
+    warnings.filterwarnings("ignore", message=".*was not found in config.*")
     global_step = 0
     first_epoch = 0
 

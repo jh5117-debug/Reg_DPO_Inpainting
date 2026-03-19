@@ -40,6 +40,7 @@ def build_stage1_cmd(project_root, args):
         "train_DiffuEraser_stage1.py",
         "--base_model_name_or_path", os.path.join(weights_dir, "stable-diffusion-v1-5"),
         "--brushnet_model_name_or_path", os.path.join(weights_dir, "diffuEraser", "brushnet"),
+        "--baseline_unet_path", args.baseline_unet_path or os.path.join(weights_dir, "diffuEraser"),
         "--vae_path", os.path.join(weights_dir, "sd-vae-ft-mse"),
         "--output_dir", os.path.join(project_root, "finetune-stage1"),
         "--logging_dir", "logs-finetune-stage1",
@@ -122,6 +123,8 @@ def parse_args():
     parser.add_argument("--mixed_precision", type=str, default="fp16")
     parser.add_argument("--wandb_project", type=str, default="DPO_Diffueraser")
     parser.add_argument("--wandb_entity", type=str, default=None)
+    parser.add_argument("--baseline_unet_path", type=str, default=None,
+                        help="DiffuEraser baseline weights dir. Default: <weights_dir>/diffuEraser")
     return parser.parse_args()
 
 
