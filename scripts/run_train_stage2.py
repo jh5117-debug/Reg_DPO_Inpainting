@@ -46,7 +46,7 @@ def build_stage2_cmd(project_root, args):
         "train_DiffuEraser_stage2.py",
         "--base_model_name_or_path", os.path.join(weights_dir, "stable-diffusion-v1-5"),
         "--pretrained_stage1", pretrained_stage1,
-        "--baseline_unet_path", os.path.join(weights_dir, "diffuEraser", "Orign_Diffueraser"),
+        "--baseline_unet_path", os.path.join(weights_dir, "diffuEraser"),
         "--vae_path", os.path.join(weights_dir, "sd-vae-ft-mse"),
         "--output_dir", os.path.join(project_root, "finetune-stage2"),
         "--logging_dir", "logs-finetune-stage2",
