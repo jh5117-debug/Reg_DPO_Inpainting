@@ -23,11 +23,15 @@ results/
 
 # === DPO 生成数据 ===
 dpo_data/
+DPO_finetune/DPO_Finetune_data/
 
 # === 训练输出 ===
 finetune-stage1/
 finetune-stage2/
+dpo-finetune-stage1/
+dpo-finetune-stage2/
 converted_weights/
+logs-dpo-*/
 
 # === 训练日志 ===
 logs/

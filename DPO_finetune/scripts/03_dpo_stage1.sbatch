@@ -1,0 +1,57 @@
+#!/bin/bash
+#SBATCH --job-name=DPO_S1
+#SBATCH --partition=pgpu
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --gres=gpu:8
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=200G
+#SBATCH --time=48:00:00
+#SBATCH --output=logs/dpo-stage1-%j.out
+
+PROJECT_ROOT="${PROJECT_HOME}/dev/Reg_DPO_Inpainting"
+
+NUM_GPUS=${NUM_GPUS:-8}
+WEIGHTS_DIR=${WEIGHTS_DIR:-${PROJECT_ROOT}/weights}
+DPO_DATA_ROOT=${DPO_DATA_ROOT:-${PROJECT_ROOT}/data/DPO_Finetune_data}
+REF_MODEL_PATH=${REF_MODEL_PATH:-${PROJECT_ROOT}/finetune-stage2/converted_weights_step34000}
+BATCH_SIZE=${BATCH_SIZE:-1}
+GRAD_ACCUM=${GRAD_ACCUM:-1}
+LR=${LR:-1e-6}
+LR_SCHEDULER=${LR_SCHEDULER:-constant}
+LR_WARMUP=${LR_WARMUP:-500}
+MAX_STEPS=${MAX_STEPS:-20000}
+CKPT_STEPS=${CKPT_STEPS:-2000}
+CKPT_LIMIT=${CKPT_LIMIT:-3}
+VAL_STEPS=${VAL_STEPS:-2000}
+NFRAMES=${NFRAMES:-16}
+SEED=${SEED:-42}
+MIXED_PRECISION=${MIXED_PRECISION:-fp16}
+WANDB_PROJECT=${WANDB_PROJECT:-DPO_Diffueraser}
+BETA_DPO=${BETA_DPO:-2500.0}
+DAVIS_OVERSAMPLE=${DAVIS_OVERSAMPLE:-10}
+
+source ~/.bashrc
+conda activate diffueraser
+cd "$PROJECT_ROOT"
+
+python DPO_finetune/scripts/run_dpo_stage1.py \
+  --num_gpus ${NUM_GPUS} \
+  --weights_dir ${WEIGHTS_DIR} \
+  --dpo_data_root ${DPO_DATA_ROOT} \
+  --ref_model_path ${REF_MODEL_PATH} \
+  --batch_size ${BATCH_SIZE} \
+  --gradient_accumulation_steps ${GRAD_ACCUM} \
+  --learning_rate ${LR} \
+  --lr_scheduler ${LR_SCHEDULER} \
+  --lr_warmup_steps ${LR_WARMUP} \
+  --max_train_steps ${MAX_STEPS} \
+  --checkpointing_steps ${CKPT_STEPS} \
+  --checkpoints_total_limit ${CKPT_LIMIT} \
+  --validation_steps ${VAL_STEPS} \
+  --nframes ${NFRAMES} \
+  --seed ${SEED} \
+  --mixed_precision ${MIXED_PRECISION} \
+  --wandb_project ${WANDB_PROJECT} \
+  --beta_dpo ${BETA_DPO} \
+  --davis_oversample ${DAVIS_OVERSAMPLE}

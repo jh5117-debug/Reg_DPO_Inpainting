@@ -680,3 +680,77 @@ def read_mask_frames(mask_path, max_frames=None):
         idx += 1
     cap.release()
     return masks
+
+
+# ============================================================
+# Temporal Consistency (TC) — CLIP ViT-H/14
+# ============================================================
+class TemporalConsistencyMetric:
+    """
+    使用 CLIP ViT-H/14 计算视频帧间时序一致性 (Temporal Consistency)。
+
+    TC = mean(cosine_similarity(f_i, f_{i+1})) for i in [0, N-2]
+
+    值域 [0, 1]，越大越好，表示相邻帧语义越一致。
+    """
+
+    def __init__(self, device="cuda", model_path=None):
+        """
+        Args:
+            device: 推理设备
+            model_path: open_clip ViT-H-14 权重路径。如为 None 则自动下载。
+        """
+        try:
+            import open_clip
+        except ImportError:
+            raise ImportError("请安装 open_clip: pip install open_clip_torch")
+
+        self.device = device
+
+        if model_path and os.path.isdir(model_path):
+            # 从本地加载
+            self.model, _, self.preprocess = open_clip.create_model_and_transforms(
+                'ViT-H-14', pretrained=os.path.join(model_path, "open_clip_pytorch_model.bin"),
+                device=device,
+            )
+        else:
+            # 自动下载 (fallback)
+            self.model, _, self.preprocess = open_clip.create_model_and_transforms(
+                'ViT-H-14', pretrained='laion2b_s32b_b79k', device=device,
+            )
+
+        self.model.eval()
+        for p in self.model.parameters():
+            p.requires_grad = False
+
+    @torch.no_grad()
+    def compute(self, frames_u8_rgb: list) -> float:
+        """
+        计算帧序列的时序一致性。
+
+        Args:
+            frames_u8_rgb: list of np.ndarray (H, W, 3), uint8, RGB
+
+        Returns:
+            float: 平均 cosine similarity (TC 得分)
+        """
+        if len(frames_u8_rgb) < 2:
+            return 1.0
+
+        features = []
+        for frame in frames_u8_rgb:
+            pil_img = Image.fromarray(frame) if isinstance(frame, np.ndarray) else frame
+            img_tensor = self.preprocess(pil_img).unsqueeze(0).to(self.device)
+            feat = self.model.encode_image(img_tensor)
+            feat = feat / feat.norm(dim=-1, keepdim=True)
+            features.append(feat)
+
+        features = torch.cat(features, dim=0)  # [N, D]
+
+        # 相邻帧 cosine similarity
+        cos_sims = []
+        for i in range(len(features) - 1):
+            sim = F.cosine_similarity(features[i:i+1], features[i+1:i+2], dim=-1)
+            cos_sims.append(sim.item())
+
+        return float(np.mean(cos_sims))
