@@ -845,15 +845,17 @@ def main(args):
                 timesteps = torch.randint(
                     0, noise_scheduler.config.num_train_timesteps, (bsz,), device=pos_latents.device
                 ).long()
+                # 展开 timesteps 到 per-frame 维度，匹配 latent shape (bsz*nframes, ...)
+                timesteps_expanded = timesteps.repeat_interleave(args.nframes, dim=0)
 
                 # 加噪: pos 和 neg 使用相同的 noise 但不同的 latent
-                noisy_pos = noise_scheduler.add_noise(pos_latents, noise, timesteps)
-                noisy_neg = noise_scheduler.add_noise(neg_latents, noise, timesteps)
+                noisy_pos = noise_scheduler.add_noise(pos_latents, noise, timesteps_expanded)
+                noisy_neg = noise_scheduler.add_noise(neg_latents, noise, timesteps_expanded)
 
                 # Concat pos + neg: batch dim 翻倍
                 noisy_all = torch.cat([noisy_pos, noisy_neg], dim=0)  # [2*b*f, 4, h, w]
                 brushnet_cond_all = torch.cat([brushnet_cond, brushnet_cond], dim=0)
-                timesteps_all = timesteps.repeat(2)
+                timesteps_all = timesteps_expanded.repeat(2)  # [2*b*f]
 
                 encoder_hidden_states = text_encoder(batch["input_ids"], return_dict=False)[0]
                 encoder_hidden_states_expanded = rearrange(
@@ -1032,4 +1034,17 @@ def main(args):
 
 if __name__ == "__main__":
     args = parse_args()
-    main(args)
+    try:
+        main(args)
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        logger.error(f"Training crashed!\n{tb}")
+        if is_wandb_available() and wandb.run is not None:
+            wandb.alert(
+                title="DPO Stage 1 Crashed",
+                text=f"```\n{tb}\n```",
+                level=wandb.AlertLevel.ERROR,
+            )
+            wandb.finish(exit_code=1)
+        raise

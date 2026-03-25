@@ -721,17 +721,18 @@ def main(args):
                 timesteps = torch.randint(
                     0, noise_scheduler.config.num_train_timesteps, (bsz,), device=pos_latents.device
                 ).long()
+                timesteps_expanded = timesteps.repeat_interleave(args.nframes, dim=0)
 
                 noisy_pos = noise_scheduler.add_noise(
-                    pos_latents, noise, timesteps.repeat_interleave(args.nframes, dim=0)
+                    pos_latents, noise, timesteps_expanded
                 )
                 noisy_neg = noise_scheduler.add_noise(
-                    neg_latents, noise, timesteps.repeat_interleave(args.nframes, dim=0)
+                    neg_latents, noise, timesteps_expanded
                 )
 
                 noisy_all = torch.cat([noisy_pos, noisy_neg], dim=0)
                 brushnet_cond_all = torch.cat([brushnet_cond, brushnet_cond], dim=0)
-                timesteps_all = timesteps.repeat(2)  # [2*bsz]
+                timesteps_all = timesteps_expanded.repeat(2)  # [2*bsz*nframes]
 
                 encoder_hidden_states = text_encoder(batch["input_ids"], return_dict=False)[0]
                 encoder_hidden_states_expanded = rearrange(
@@ -914,4 +915,17 @@ def main(args):
 
 if __name__ == "__main__":
     args = parse_args()
-    main(args)
+    try:
+        main(args)
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        logger.error(f"Training crashed!\n{tb}")
+        if is_wandb_available() and wandb.run is not None:
+            wandb.alert(
+                title="DPO Stage 2 Crashed",
+                text=f"```\n{tb}\n```",
+                level=wandb.AlertLevel.ERROR,
+            )
+            wandb.finish(exit_code=1)
+        raise
