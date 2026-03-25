@@ -77,7 +77,17 @@ class DPODataset(torch.utils.data.Dataset):
 
         entries = []
         for video_name, info in manifest.items():
+            # 优先用 key 作为目录名，若不存在则从 manifest 路径字段提取实际目录
             video_dir = os.path.join(self.dpo_data_root, video_name)
+            if not os.path.isdir(video_dir):
+                # manifest 的 gt_frames 字段形如 "dpo_data/davis_bear/gt_frames"
+                # 或直接 "davis_bear/gt_frames"，从中提取视频目录名
+                gt_path_field = info.get("gt_frames", "")
+                if gt_path_field:
+                    # 取 gt_frames 路径的父目录名作为实际目录名
+                    actual_dir_name = os.path.basename(os.path.dirname(gt_path_field))
+                    video_dir = os.path.join(self.dpo_data_root, actual_dir_name)
+
             gt_dir = os.path.join(video_dir, "gt_frames")
             mask_dir = os.path.join(video_dir, "masks")
             neg_dir_1 = os.path.join(video_dir, "neg_frames_1")
