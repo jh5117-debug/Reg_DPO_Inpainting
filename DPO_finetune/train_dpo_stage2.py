@@ -732,7 +732,10 @@ def main(args):
 
                 noisy_all = torch.cat([noisy_pos, noisy_neg], dim=0)
                 brushnet_cond_all = torch.cat([brushnet_cond, brushnet_cond], dim=0)
-                timesteps_all = timesteps_expanded.repeat(2)  # [2*bsz*nframes]
+                # BrushNet (2D) 需要 per-frame timesteps: (2*bsz*nframes,)
+                timesteps_all_2d = timesteps_expanded.repeat(2)
+                # UNetMotionModel 内部自己 repeat_interleave(num_frames)，只需要 per-batch: (2*bsz,)
+                timesteps_all_motion = timesteps.repeat(2)
 
                 encoder_hidden_states = text_encoder(batch["input_ids"], return_dict=False)[0]
                 encoder_hidden_states_expanded = rearrange(
@@ -746,7 +749,7 @@ def main(args):
                 # === Policy forward ===
                 # BrushNet forward (2D encoder, 冻结)
                 down_samples, mid_sample, up_samples = brushnet(
-                    noisy_all, timesteps_all,
+                    noisy_all, timesteps_all_2d,
                     encoder_hidden_states=encoder_hidden_states_all,
                     brushnet_cond=brushnet_cond_all,
                     return_dict=False,
@@ -759,7 +762,7 @@ def main(args):
                 # DPO concat 后 noisy_all batch 翻倍，encoder_hidden_states 也需要翻倍
                 encoder_hidden_states_motion = encoder_hidden_states.repeat(2, 1, 1)
                 model_pred = unet_main(
-                    noisy_all, timesteps_all,
+                    noisy_all, timesteps_all_motion,
                     encoder_hidden_states=encoder_hidden_states_motion,
                     down_block_add_samples=[s.to(dtype=weight_dtype) for s in down_samples],
                     mid_block_add_sample=mid_sample.to(dtype=weight_dtype),
@@ -774,13 +777,13 @@ def main(args):
                 # === Ref forward (no_grad) ===
                 with torch.no_grad():
                     ref_down, ref_mid, ref_up = brushnet_ref(
-                        noisy_all, timesteps_all,
+                        noisy_all, timesteps_all_2d,
                         encoder_hidden_states=encoder_hidden_states_all,
                         brushnet_cond=brushnet_cond_all,
                         return_dict=False,
                     )
                     ref_pred = unet_ref(
-                        noisy_all, timesteps_all,
+                        noisy_all, timesteps_all_motion,
                         encoder_hidden_states=encoder_hidden_states_motion,
                         down_block_add_samples=[s.to(dtype=weight_dtype) for s in ref_down],
                         mid_block_add_sample=ref_mid.to(dtype=weight_dtype),
