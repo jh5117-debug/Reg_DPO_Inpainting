@@ -54,7 +54,6 @@ def build_cmd(project_root, args):
         "--tracker_project_name", args.wandb_project,
         "--enable_xformers_memory_efficient_attention",
         "--gradient_checkpointing",
-        "--mixed_precision", args.mixed_precision,
         "--set_grads_to_none",
         "--resume_from_checkpoint", "latest",
     ]

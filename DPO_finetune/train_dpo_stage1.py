@@ -61,6 +61,7 @@ if PROJECT_ROOT not in sys.path:
 from diffueraser.pipeline_diffueraser_stage1 import StableDiffusionDiffuEraserPipelineStageOne
 from libs.brushnet_CA import BrushNetModel
 from libs.unet_2d_condition import UNet2DConditionModel
+from libs.unet_motion_model import UNetMotionModel
 from DPO_finetune.dataset.dpo_dataset import DPODataset
 from dataset.file_client import FileClient
 from dataset.img_util import imfrombytes
@@ -778,6 +779,7 @@ def main(args):
 
     # 最佳权重追踪
     best_composite_score = -float('inf')
+    initial_grad_norm = None  # DGR 归一化基准
 
     if args.resume_from_checkpoint:
         if args.resume_from_checkpoint != "latest":
@@ -992,11 +994,10 @@ def main(args):
             }
             if grad_norm is not None:
                 logs["dgr_grad_norm"] = grad_norm
-                # 归一化 DGR: 相对于第 1 步的比值
-                if not hasattr(main, '_initial_grad_norm'):
-                    main._initial_grad_norm = grad_norm
-                if main._initial_grad_norm > 0:
-                    ratio = grad_norm / main._initial_grad_norm
+                if initial_grad_norm is None:
+                    initial_grad_norm = grad_norm
+                if initial_grad_norm > 0:
+                    ratio = grad_norm / initial_grad_norm
                     logs["grad_norm_ratio"] = ratio
                     diagnostics["grad_norm_ratio"] = ratio
             progress_bar.set_postfix(**{k: f"{v:.4f}" if isinstance(v, float) else v for k, v in list(logs.items())[:6]})

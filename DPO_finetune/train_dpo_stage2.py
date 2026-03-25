@@ -656,6 +656,7 @@ def main(args):
     global_step = 0
     first_epoch = 0
     best_composite_score = -float('inf')
+    initial_grad_norm = None  # DGR 归一化基准
 
     if args.resume_from_checkpoint:
         if args.resume_from_checkpoint != "latest":
@@ -876,11 +877,10 @@ def main(args):
             }
             if grad_norm is not None:
                 logs["dgr_grad_norm"] = grad_norm
-                # 归一化 DGR: 相对于第 1 步的比值
-                if not hasattr(main, '_initial_grad_norm_s2'):
-                    main._initial_grad_norm_s2 = grad_norm
-                if main._initial_grad_norm_s2 > 0:
-                    ratio = grad_norm / main._initial_grad_norm_s2
+                if initial_grad_norm is None:
+                    initial_grad_norm = grad_norm
+                if initial_grad_norm > 0:
+                    ratio = grad_norm / initial_grad_norm
                     logs["grad_norm_ratio"] = ratio
                     diagnostics["grad_norm_ratio"] = ratio
             progress_bar.set_postfix(**{k: f"{v:.4f}" if isinstance(v, float) else v for k, v in list(logs.items())[:6]})
