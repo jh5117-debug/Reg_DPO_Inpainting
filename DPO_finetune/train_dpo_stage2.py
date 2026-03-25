@@ -451,6 +451,24 @@ def main(args):
     if accelerator.is_main_process:
         os.makedirs(args.output_dir, exist_ok=True)
 
+    # ===== WandB 初始化提前: 确保后续任何报错都能在 WandB 中可见 =====
+    if accelerator.is_main_process:
+        tracker_config = dict(vars(args))
+        for key in ["validation_prompt", "validation_image", "validation_mask"]:
+            tracker_config.pop(key, None)
+
+        init_kwargs = {}
+        if args.report_to == "wandb":
+            init_kwargs["wandb"] = {"name": f"dpo-stage2-{args.max_train_steps or 'auto'}steps"}
+            if args.wandb_entity:
+                init_kwargs["wandb"]["entity"] = args.wandb_entity
+
+        try:
+            accelerator.init_trackers(args.tracker_project_name, config=tracker_config, init_kwargs=init_kwargs)
+            logger.info("WandB tracker initialized successfully (early init).")
+        except Exception as e:
+            logger.warning(f"Failed to init WandB tracker: {e}. Continuing without tracking.")
+
     # Load tokenizer
     if args.tokenizer_name:
         tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_name, revision=args.revision, use_fast=False)
@@ -614,19 +632,7 @@ def main(args):
         args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
     args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
 
-    if accelerator.is_main_process:
-        tracker_config = dict(vars(args))
-        tracker_config.pop("validation_prompt")
-        tracker_config.pop("validation_image")
-        tracker_config.pop("validation_mask")
-
-        init_kwargs = {}
-        if args.report_to == "wandb":
-            init_kwargs["wandb"] = {"name": f"dpo-stage2-{args.max_train_steps}steps"}
-            if args.wandb_entity:
-                init_kwargs["wandb"]["entity"] = args.wandb_entity
-
-        accelerator.init_trackers(args.tracker_project_name, config=tracker_config, init_kwargs=init_kwargs)
+    # WandB init 已在前面提前完成
 
     # Train!
     total_batch_size = args.train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps

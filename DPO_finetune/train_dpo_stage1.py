@@ -546,6 +546,24 @@ def main(args):
         if args.output_dir is not None:
             os.makedirs(args.output_dir, exist_ok=True)
 
+    # ===== WandB 初始化提前: 确保后续任何报错都能在 WandB 中可见 =====
+    if accelerator.is_main_process:
+        tracker_config = dict(vars(args))
+        for key in ["validation_prompt", "validation_image", "validation_mask"]:
+            tracker_config.pop(key, None)
+
+        init_kwargs = {}
+        if args.report_to == "wandb":
+            init_kwargs["wandb"] = {"name": f"dpo-stage1-{args.max_train_steps or 'auto'}steps"}
+            if args.wandb_entity:
+                init_kwargs["wandb"]["entity"] = args.wandb_entity
+
+        try:
+            accelerator.init_trackers(args.tracker_project_name, config=tracker_config, init_kwargs=init_kwargs)
+            logger.info("WandB tracker initialized successfully (early init).")
+        except Exception as e:
+            logger.warning(f"Failed to init WandB tracker: {e}. Continuing without tracking.")
+
     # Load tokenizer
     if args.tokenizer_name:
         tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_name, revision=args.revision, use_fast=False)
@@ -563,15 +581,79 @@ def main(args):
         args.vae_path, subfolder="vae", revision=args.revision, variant=args.variant
     )
 
+    # ===== 辅助函数: 从 UNetMotionModel 提取 2D 权重到 UNet2DConditionModel =====
+    def _extract_2d_from_motion(motion_unet, base_model_path, revision=None, variant=None):
+        """
+        SFT 权重的 config.json 声明为 UNetMotionModel，不能直接用 UNet2DConditionModel 加载。
+        必须先创建空的 UNet2D (从 SD base model 获取正确 config)，然后逐模块拷贝 2D 权重。
+        """
+        unet_2d = UNet2DConditionModel.from_pretrained(
+            base_model_path, subfolder="unet", revision=revision, variant=variant
+        )
+        # 从 UNetMotionModel 拷贝 2D 权重
+        unet_2d.conv_in.load_state_dict(motion_unet.conv_in.state_dict())
+        unet_2d.time_proj.load_state_dict(motion_unet.time_proj.state_dict())
+        unet_2d.time_embedding.load_state_dict(motion_unet.time_embedding.state_dict())
+
+        for i, down_block in enumerate(motion_unet.down_blocks):
+            unet_2d.down_blocks[i].resnets.load_state_dict(down_block.resnets.state_dict())
+            if hasattr(unet_2d.down_blocks[i], "attentions") and hasattr(down_block, "attentions"):
+                unet_2d.down_blocks[i].attentions.load_state_dict(down_block.attentions.state_dict())
+            if unet_2d.down_blocks[i].downsamplers and down_block.downsamplers:
+                unet_2d.down_blocks[i].downsamplers.load_state_dict(down_block.downsamplers.state_dict())
+
+        for i, up_block in enumerate(motion_unet.up_blocks):
+            unet_2d.up_blocks[i].resnets.load_state_dict(up_block.resnets.state_dict())
+            if hasattr(unet_2d.up_blocks[i], "attentions") and hasattr(up_block, "attentions"):
+                unet_2d.up_blocks[i].attentions.load_state_dict(up_block.attentions.state_dict())
+            if unet_2d.up_blocks[i].upsamplers and up_block.upsamplers:
+                unet_2d.up_blocks[i].upsamplers.load_state_dict(up_block.upsamplers.state_dict())
+
+        unet_2d.mid_block.resnets.load_state_dict(motion_unet.mid_block.resnets.state_dict())
+        unet_2d.mid_block.attentions.load_state_dict(motion_unet.mid_block.attentions.state_dict())
+
+        if motion_unet.conv_norm_out is not None:
+            unet_2d.conv_norm_out.load_state_dict(motion_unet.conv_norm_out.state_dict())
+        if hasattr(motion_unet, 'conv_act') and motion_unet.conv_act is not None:
+            unet_2d.conv_act.load_state_dict(motion_unet.conv_act.state_dict())
+        unet_2d.conv_out.load_state_dict(motion_unet.conv_out.state_dict())
+        return unet_2d
+
+    # ===== 检测 ref_model_path 的 unet config 类型 =====
+    ref_unet_config_path = os.path.join(args.ref_model_path, "unet_main", "config.json")
+    is_motion_model = False
+    if os.path.exists(ref_unet_config_path):
+        import json
+        with open(ref_unet_config_path) as f:
+            unet_cfg = json.load(f)
+        is_motion_model = (unet_cfg.get("_class_name", "") == "UNetMotionModel")
+        logger.info(f"Ref unet config _class_name: {unet_cfg.get('_class_name')}, is_motion_model={is_motion_model}")
+
     # ===== Policy model: 从 ref_model_path 初始化 (可训练) =====
-    logger.info(f"Loading policy UNet2D from {args.ref_model_path}")
-    unet_main = UNet2DConditionModel.from_pretrained(args.ref_model_path, subfolder="unet_main")
+    if is_motion_model:
+        logger.info(f"Loading policy UNet via UNetMotionModel from {args.ref_model_path} (extracting 2D weights)")
+        _motion_unet = UNetMotionModel.from_pretrained(args.ref_model_path, subfolder="unet_main")
+        unet_main = _extract_2d_from_motion(_motion_unet, args.base_model_name_or_path, args.revision, args.variant)
+        del _motion_unet
+        logger.info("Successfully extracted policy 2D UNet weights from UNetMotionModel")
+    else:
+        logger.info(f"Loading policy UNet2D directly from {args.ref_model_path}")
+        unet_main = UNet2DConditionModel.from_pretrained(args.ref_model_path, subfolder="unet_main")
+
     logger.info(f"Loading policy BrushNet from {args.ref_model_path}")
     brushnet = BrushNetModel.from_pretrained(args.ref_model_path, subfolder="brushnet")
 
     # ===== Ref model: 从同一路径加载，冻结 =====
-    logger.info(f"Loading ref UNet2D from {args.ref_model_path}")
-    unet_ref = UNet2DConditionModel.from_pretrained(args.ref_model_path, subfolder="unet_main")
+    if is_motion_model:
+        logger.info(f"Loading ref UNet via UNetMotionModel from {args.ref_model_path} (extracting 2D weights)")
+        _motion_unet_ref = UNetMotionModel.from_pretrained(args.ref_model_path, subfolder="unet_main")
+        unet_ref = _extract_2d_from_motion(_motion_unet_ref, args.base_model_name_or_path, args.revision, args.variant)
+        del _motion_unet_ref
+        logger.info("Successfully extracted ref 2D UNet weights from UNetMotionModel")
+    else:
+        logger.info(f"Loading ref UNet2D directly from {args.ref_model_path}")
+        unet_ref = UNet2DConditionModel.from_pretrained(args.ref_model_path, subfolder="unet_main")
+
     unet_ref.requires_grad_(False)
     unet_ref.eval()
 
@@ -670,19 +752,7 @@ def main(args):
         args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
     args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
 
-    if accelerator.is_main_process:
-        tracker_config = dict(vars(args))
-        tracker_config.pop("validation_prompt")
-        tracker_config.pop("validation_image")
-        tracker_config.pop("validation_mask")
-
-        init_kwargs = {}
-        if args.report_to == "wandb":
-            init_kwargs["wandb"] = {"name": f"dpo-stage1-{args.max_train_steps}steps"}
-            if args.wandb_entity:
-                init_kwargs["wandb"]["entity"] = args.wandb_entity
-
-        accelerator.init_trackers(args.tracker_project_name, config=tracker_config, init_kwargs=init_kwargs)
+    # WandB init 已在前面提前完成
 
     # Train!
     total_batch_size = args.train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
