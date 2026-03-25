@@ -505,16 +505,16 @@ def main(args):
 
     for i, down_block in enumerate(stage1_unet.down_blocks):
         unet_main.down_blocks[i].resnets.load_state_dict(down_block.resnets.state_dict())
-        if hasattr(unet_main.down_blocks[i], "attentions"):
+        if hasattr(unet_main.down_blocks[i], "attentions") and hasattr(down_block, "attentions"):
             unet_main.down_blocks[i].attentions.load_state_dict(down_block.attentions.state_dict())
-        if unet_main.down_blocks[i].downsamplers:
+        if unet_main.down_blocks[i].downsamplers and down_block.downsamplers:
             unet_main.down_blocks[i].downsamplers.load_state_dict(down_block.downsamplers.state_dict())
 
     for i, up_block in enumerate(stage1_unet.up_blocks):
         unet_main.up_blocks[i].resnets.load_state_dict(up_block.resnets.state_dict())
-        if hasattr(unet_main.up_blocks[i], "attentions"):
+        if hasattr(unet_main.up_blocks[i], "attentions") and hasattr(up_block, "attentions"):
             unet_main.up_blocks[i].attentions.load_state_dict(up_block.attentions.state_dict())
-        if unet_main.up_blocks[i].upsamplers:
+        if unet_main.up_blocks[i].upsamplers and up_block.upsamplers:
             unet_main.up_blocks[i].upsamplers.load_state_dict(up_block.upsamplers.state_dict())
 
     unet_main.mid_block.resnets.load_state_dict(stage1_unet.mid_block.resnets.state_dict())
@@ -522,7 +522,7 @@ def main(args):
 
     if stage1_unet.conv_norm_out is not None:
         unet_main.conv_norm_out.load_state_dict(stage1_unet.conv_norm_out.state_dict())
-    if stage1_unet.conv_act is not None:
+    if hasattr(stage1_unet, 'conv_act') and stage1_unet.conv_act is not None:
         unet_main.conv_act.load_state_dict(stage1_unet.conv_act.state_dict())
     unet_main.conv_out.load_state_dict(stage1_unet.conv_out.state_dict())
     del stage1_unet
@@ -755,9 +755,11 @@ def main(args):
                 gc.collect()
 
                 # UNetMotionModel forward (MotionModule 可训练)
+                # DPO concat 后 noisy_all batch 翻倍，encoder_hidden_states 也需要翻倍
+                encoder_hidden_states_motion = encoder_hidden_states.repeat(2, 1, 1)
                 model_pred = unet_main(
                     noisy_all, timesteps_all,
-                    encoder_hidden_states=encoder_hidden_states,  # Stage 2: UNetMotion 内部处理 cross-attn
+                    encoder_hidden_states=encoder_hidden_states_motion,
                     down_block_add_samples=[s.to(dtype=weight_dtype) for s in down_samples],
                     mid_block_add_sample=mid_sample.to(dtype=weight_dtype),
                     up_block_add_samples=[s.to(dtype=weight_dtype) for s in up_samples],
@@ -778,7 +780,7 @@ def main(args):
                     )
                     ref_pred = unet_ref(
                         noisy_all, timesteps_all,
-                        encoder_hidden_states=encoder_hidden_states,
+                        encoder_hidden_states=encoder_hidden_states_motion,
                         down_block_add_samples=[s.to(dtype=weight_dtype) for s in ref_down],
                         mid_block_add_sample=ref_mid.to(dtype=weight_dtype),
                         up_block_add_samples=[s.to(dtype=weight_dtype) for s in ref_up],
