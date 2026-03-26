@@ -40,6 +40,10 @@ logs-finetune-*/
 
 # === W&B ===
 wandb/
+.wandb_cache/
+
+# === HuggingFace cache ===
+.hf_cache/
 
 # === Python ===
 __pycache__/

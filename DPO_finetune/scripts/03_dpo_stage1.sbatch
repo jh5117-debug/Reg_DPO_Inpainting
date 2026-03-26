@@ -35,6 +35,15 @@ source ~/.bashrc
 conda activate diffueraser
 cd "$PROJECT_ROOT"
 
+# === 所有缓存/日志/artifacts 必须在项目目录内，禁止写入 home ===
+export WANDB_DIR="${PROJECT_ROOT}/.wandb_cache"
+export WANDB_CACHE_DIR="${PROJECT_ROOT}/.wandb_cache"
+export WANDB_DATA_DIR="${PROJECT_ROOT}/.wandb_cache"
+export WANDB_CONFIG_DIR="${PROJECT_ROOT}/.wandb_cache/config"
+export HF_HOME="${PROJECT_ROOT}/.hf_cache"
+export TRANSFORMERS_CACHE="${PROJECT_ROOT}/.hf_cache"
+mkdir -p "${WANDB_DIR}" "${WANDB_CONFIG_DIR}" "${HF_HOME}"
+
 python DPO_finetune/scripts/run_dpo_stage1.py \
   --num_gpus ${NUM_GPUS} \
   --weights_dir ${WEIGHTS_DIR} \
