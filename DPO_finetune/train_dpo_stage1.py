@@ -811,8 +811,6 @@ def main(args):
     for epoch in range(first_epoch, args.num_train_epochs):
         for step, batch in enumerate(train_dataloader):
             with accelerator.accumulate(unet_main, brushnet):
-                torch.cuda.empty_cache()
-                gc.collect()
 
                 # === VAE Encode ===
                 pos_latents = vae.encode(
@@ -872,9 +870,6 @@ def main(args):
                     return_dict=False,
                 )
 
-                torch.cuda.empty_cache()
-                gc.collect()
-
                 model_pred = unet_main(
                     noisy_all, timesteps_all,
                     encoder_hidden_states=encoder_hidden_states_all,
@@ -884,8 +879,9 @@ def main(args):
                     return_dict=True,
                 ).sample
 
+                # 立即释放 Policy BrushNet 的大量中间输出，腾出 ~4GB 给 Ref forward
+                del down_samples, mid_sample, up_samples
                 torch.cuda.empty_cache()
-                gc.collect()
 
                 # === Ref forward (no_grad) ===
                 with torch.no_grad():
@@ -903,14 +899,15 @@ def main(args):
                         up_block_add_samples=[s.to(dtype=weight_dtype) for s in ref_up],
                         return_dict=True,
                     ).sample
+                    del ref_down, ref_mid, ref_up
 
                 # === DPO Loss ===
                 loss, diagnostics = compute_dpo_loss(
                     model_pred, ref_pred, noise, beta_dpo=args.beta_dpo
-                )
+)
 
-                torch.cuda.empty_cache()
-                gc.collect()
+                # 释放不再需要的中间变量
+                del noisy_all, brushnet_cond_all, encoder_hidden_states_all
 
                 accelerator.backward(loss)
 
@@ -952,7 +949,7 @@ def main(args):
                         logger.info(f"Saved state to {save_path}")
 
                     # Validation + 权重保存 (最多 best + last)
-                    if args.validation_prompt is not None and (global_step % args.validation_steps == 0 or global_step == (initial_global_step + 1)):
+                    if args.validation_prompt is not None and global_step % args.validation_steps == 0:
                         avg_psnr, avg_ssim = log_validation(
                             vae, text_encoder, tokenizer, unet_main, brushnet,
                             args, accelerator, weight_dtype, global_step,
