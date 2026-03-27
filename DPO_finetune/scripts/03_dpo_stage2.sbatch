@@ -68,4 +68,5 @@ python DPO_finetune/scripts/run_dpo_stage2.py \
   --mixed_precision ${MIXED_PRECISION} \
   --wandb_project ${WANDB_PROJECT} \
   --beta_dpo ${BETA_DPO} \
-  --davis_oversample ${DAVIS_OVERSAMPLE}
+  --davis_oversample ${DAVIS_OVERSAMPLE} \
+  --chunk_aligned

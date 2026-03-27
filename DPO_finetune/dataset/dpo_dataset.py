@@ -76,6 +76,7 @@ class DPODataset(torch.utils.data.Dataset):
             manifest = json.load(f)
 
         entries = []
+        seen = set()  # 去重: (video_dir, neg_id)，避免 part1/part2 fallback 到同一目录后重复展开
         for video_name, info in manifest.items():
             # 优先用 key 作为目录名，若不存在则从 manifest 路径字段提取实际目录
             video_dir = os.path.join(self.dpo_data_root, video_name)
@@ -120,8 +121,11 @@ class DPODataset(torch.utils.data.Dataset):
             }
 
             # 展开 neg_frames_1 和 neg_frames_2 为独立 entry
+            # 用 (video_dir, neg_id) 去重，防止 manifest 中 part1/part2 fallback 到同一目录后重复
             for neg_dir, neg_id in [(neg_dir_1, "neg_1"), (neg_dir_2, "neg_2")]:
-                if os.path.isdir(neg_dir):
+                dedup_key = (video_dir, neg_id)
+                if os.path.isdir(neg_dir) and dedup_key not in seen:
+                    seen.add(dedup_key)
                     entries.append({**base, "neg_dir": neg_dir, "neg_id": neg_id})
 
         # DAVIS 10x 过采样

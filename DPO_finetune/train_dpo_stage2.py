@@ -528,6 +528,10 @@ def main(args):
     del stage1_unet
     logger.info("Successfully loaded baseline MotionModule + DPO Stage 1 2D weights")
 
+    # 显式设置训练态：from_pretrained() 默认 eval mode
+    # 不设 train() 会导致 gradient_checkpointing 失效 + temporal dropout 关闭
+    unet_main.train()
+
     # Policy BrushNet (来自 DPO Stage 1，冻结)
     brushnet = BrushNetModel.from_pretrained(args.pretrained_dpo_stage1, subfolder="brushnet")
 
