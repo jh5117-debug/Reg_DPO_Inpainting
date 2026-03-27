@@ -811,6 +811,8 @@ def main(args):
     for epoch in range(first_epoch, args.num_train_epochs):
         for step, batch in enumerate(train_dataloader):
             with accelerator.accumulate(unet_main, brushnet):
+                torch.cuda.empty_cache()
+                gc.collect()
 
                 # === VAE Encode ===
                 pos_latents = vae.encode(
@@ -822,15 +824,19 @@ def main(args):
                 ).latent_dist.sample() * vae.config.scaling_factor
 
                 # BrushNet conditioning: GT masked image + mask
+                n_batch = batch["conditioning_pixel_values"].shape[0]
                 cond_latents = vae.encode(
                     rearrange(batch["conditioning_pixel_values"], "b f c h w -> (b f) c h w").to(dtype=weight_dtype)
                 ).latent_dist.sample() * vae.config.scaling_factor
-                cond_latents = rearrange(cond_latents, "(b f) c h w -> b f c h w", b=batch["conditioning_pixel_values"].shape[0])
+                cond_latents = rearrange(cond_latents, "(b f) c h w -> b f c h w", b=n_batch)
 
                 masks = torch.nn.functional.interpolate(
                     batch["masks"].to(dtype=weight_dtype),
                     size=(1, pos_latents.shape[-2], pos_latents.shape[-1])
                 )
+
+                # VAE encode 完毕，释放原始像素 tensor 节省显存
+                del batch["pixel_values_pos"], batch["pixel_values_neg"], batch["conditioning_pixel_values"]
 
                 brushnet_cond = rearrange(
                     torch.concat([cond_latents, masks], 2),
@@ -870,6 +876,9 @@ def main(args):
                     return_dict=False,
                 )
 
+                torch.cuda.empty_cache()
+                gc.collect()
+
                 model_pred = unet_main(
                     noisy_all, timesteps_all,
                     encoder_hidden_states=encoder_hidden_states_all,
@@ -879,9 +888,10 @@ def main(args):
                     return_dict=True,
                 ).sample
 
-                # 立即释放 Policy BrushNet 的大量中间输出，腾出 ~4GB 给 Ref forward
+                # Policy BrushNet 输出已被 UNet 消费，立即释放
                 del down_samples, mid_sample, up_samples
                 torch.cuda.empty_cache()
+                gc.collect()
 
                 # === Ref forward (no_grad) ===
                 with torch.no_grad():
@@ -899,15 +909,17 @@ def main(args):
                         up_block_add_samples=[s.to(dtype=weight_dtype) for s in ref_up],
                         return_dict=True,
                     ).sample
-                    del ref_down, ref_mid, ref_up
+
+                # Ref BrushNet 输出已被消费，立即释放
+                del ref_down, ref_mid, ref_up
 
                 # === DPO Loss ===
                 loss, diagnostics = compute_dpo_loss(
                     model_pred, ref_pred, noise, beta_dpo=args.beta_dpo
-)
+                )
 
-                # 释放不再需要的中间变量
-                del noisy_all, brushnet_cond_all, encoder_hidden_states_all
+                torch.cuda.empty_cache()
+                gc.collect()
 
                 accelerator.backward(loss)
 

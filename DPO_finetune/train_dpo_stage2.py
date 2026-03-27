@@ -700,15 +700,19 @@ def main(args):
                     rearrange(batch["pixel_values_neg"], "b f c h w -> (b f) c h w").to(dtype=weight_dtype)
                 ).latent_dist.sample() * vae.config.scaling_factor
 
+                n_batch = batch["conditioning_pixel_values"].shape[0]
                 cond_latents = vae.encode(
                     rearrange(batch["conditioning_pixel_values"], "b f c h w -> (b f) c h w").to(dtype=weight_dtype)
                 ).latent_dist.sample() * vae.config.scaling_factor
-                cond_latents = rearrange(cond_latents, "(b f) c h w -> b f c h w", b=batch["conditioning_pixel_values"].shape[0])
+                cond_latents = rearrange(cond_latents, "(b f) c h w -> b f c h w", b=n_batch)
 
                 masks = torch.nn.functional.interpolate(
                     batch["masks"].to(dtype=weight_dtype),
                     size=(1, pos_latents.shape[-2], pos_latents.shape[-1])
                 )
+
+                # VAE encode 完毕，释放原始像素 tensor 节省显存
+                del batch["pixel_values_pos"], batch["pixel_values_neg"], batch["conditioning_pixel_values"]
 
                 brushnet_cond = rearrange(
                     torch.concat([cond_latents, masks], 2),
@@ -771,6 +775,8 @@ def main(args):
                     num_frames=args.nframes,
                 ).sample
 
+                # Policy BrushNet 输出已被 UNet 消费，立即释放
+                del down_samples, mid_sample, up_samples
                 torch.cuda.empty_cache()
                 gc.collect()
 
@@ -791,6 +797,9 @@ def main(args):
                         return_dict=True,
                         num_frames=args.nframes,
                     ).sample
+
+                # Ref BrushNet 输出已被消费，立即释放
+                del ref_down, ref_mid, ref_up
 
                 # === DPO Loss ===
                 loss, diagnostics = compute_dpo_loss(
@@ -840,7 +849,7 @@ def main(args):
 
                     # Validation + 权重保存
                     if args.validation_prompt is not None and not os.environ.get("SKIP_VALIDATION") and \
-                       (global_step % args.validation_steps == 0 or global_step == (initial_global_step + 1)):
+                       global_step % args.validation_steps == 0:
                         results = log_validation(
                             vae, text_encoder, tokenizer, unet_main, brushnet,
                             args, accelerator, weight_dtype, global_step,
