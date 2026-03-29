@@ -24,6 +24,7 @@ DPO 偏好对数据集 — 用于 DiffuEraser DPO Finetune
 import json
 import os
 import random
+import time
 from typing import Optional
 
 import numpy as np
@@ -62,8 +63,194 @@ class DPODataset(torch.utils.data.Dataset):
             transforms.ToTensor(),
         ])
 
+        self.integrity_report_path = os.path.join(self.dpo_data_root, ".dpo_dataset_integrity_report.json")
+        self.integrity_lock_path = self.integrity_report_path + ".lock"
+        self.runtime_bad_videos = set()
+        self.max_resample_attempts = 64
+        self.integrity_report = self._load_or_create_integrity_report()
+        self.bad_videos = set(self.integrity_report.get("bad_videos", {}).keys())
+        self.good_videos = set(self.integrity_report.get("good_videos", {}).keys())
         self.entries = self._load_manifest()
+        if not self.entries:
+            raise RuntimeError(
+                f"No valid DPO entries remain after integrity filtering under {self.dpo_data_root}. "
+                "Please repair or replace the corrupted videos."
+            )
         self._print_stats()
+
+    def _is_logging_process(self) -> bool:
+        return os.environ.get("RANK", "0") == "0"
+
+    def _safe_remove(self, path: str):
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+
+    def _is_stale_lock(self, path: str, stale_seconds: int = 7200) -> bool:
+        try:
+            return (time.time() - os.path.getmtime(path)) > stale_seconds
+        except FileNotFoundError:
+            return False
+
+    def _load_or_create_integrity_report(self) -> dict:
+        """
+        训练开始前做一次数据完整性扫描：
+        - 若存在损坏图片 / Git LFS pointer，则整段视频跳过
+        - 多卡场景下只允许一个进程扫描，其余进程等待结果
+        """
+        while True:
+            try:
+                fd = os.open(self.integrity_lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.write(fd, str(os.getpid()).encode("utf-8"))
+                os.close(fd)
+                owner = True
+                break
+            except FileExistsError:
+                if self._is_stale_lock(self.integrity_lock_path):
+                    self._safe_remove(self.integrity_lock_path)
+                    continue
+                owner = False
+                break
+
+        if owner:
+            try:
+                self._safe_remove(self.integrity_report_path)
+                if self._is_logging_process():
+                    print(f"DPODataset integrity: scanning dataset at {self.dpo_data_root} ...")
+                report = self._scan_dataset_integrity()
+                tmp_path = self.integrity_report_path + ".tmp"
+                with open(tmp_path, "w") as f:
+                    json.dump(report, f, indent=2)
+                os.replace(tmp_path, self.integrity_report_path)
+                return report
+            finally:
+                self._safe_remove(self.integrity_lock_path)
+
+        if self._is_logging_process():
+            print("DPODataset integrity: waiting for another process to finish dataset scan ...")
+
+        while True:
+            if os.path.exists(self.integrity_report_path) and not os.path.exists(self.integrity_lock_path):
+                with open(self.integrity_report_path) as f:
+                    return json.load(f)
+            if self._is_stale_lock(self.integrity_lock_path):
+                self._safe_remove(self.integrity_lock_path)
+                return self._load_or_create_integrity_report()
+            time.sleep(2)
+
+    def _inspect_image_file(self, path: str) -> tuple[str, Optional[str]]:
+        try:
+            with open(path, "rb") as f:
+                head = f.read(256)
+        except Exception as e:
+            return "unreadable_file", f"{type(e).__name__}: {e}"
+
+        if head.startswith(b"version https://git-lfs.github.com/spec/v1"):
+            return "lfs_pointer", "git-lfs-pointer"
+
+        try:
+            with Image.open(path) as img:
+                img.verify()
+            return "ok", None
+        except Exception as e:
+            return "invalid_image", f"{type(e).__name__}: {e}"
+
+    def _scan_dataset_integrity(self) -> dict:
+        image_exts = (".png", ".jpg", ".jpeg")
+        relevant_dirs = ("gt_frames", "masks", "neg_frames_1", "neg_frames_2")
+
+        summary = {
+            "total_video_dirs_scanned": 0,
+            "usable_video_dirs": 0,
+            "skipped_video_dirs": 0,
+            "total_image_files_scanned": 0,
+            "clean_image_files": 0,
+            "lfs_pointer_files": 0,
+            "invalid_image_files": 0,
+            "unreadable_file_count": 0,
+            "trainable_image_files": 0,
+        }
+        good_videos = {}
+        bad_videos = {}
+
+        video_dirs = sorted(
+            d for d in os.listdir(self.dpo_data_root)
+            if os.path.isdir(os.path.join(self.dpo_data_root, d))
+        )
+
+        for idx, video_name in enumerate(video_dirs, 1):
+            summary["total_video_dirs_scanned"] += 1
+            video_root = os.path.join(self.dpo_data_root, video_name)
+            video_total_images = 0
+            video_bad_count = 0
+            video_bad_files = []
+
+            for subdir in relevant_dirs:
+                subdir_path = os.path.join(video_root, subdir)
+                if not os.path.isdir(subdir_path):
+                    continue
+
+                image_files = sorted(
+                    f for f in os.listdir(subdir_path)
+                    if f.lower().endswith(image_exts)
+                )
+
+                for filename in image_files:
+                    full_path = os.path.join(subdir_path, filename)
+                    rel_path = os.path.join(video_name, subdir, filename)
+                    video_total_images += 1
+                    summary["total_image_files_scanned"] += 1
+
+                    status, detail = self._inspect_image_file(full_path)
+                    if status == "ok":
+                        summary["clean_image_files"] += 1
+                        continue
+
+                    if status == "lfs_pointer":
+                        summary["lfs_pointer_files"] += 1
+                    elif status == "invalid_image":
+                        summary["invalid_image_files"] += 1
+                    else:
+                        summary["unreadable_file_count"] += 1
+
+                    video_bad_count += 1
+                    if len(video_bad_files) < 20:
+                        video_bad_files.append({
+                            "path": rel_path,
+                            "status": status,
+                            "detail": detail,
+                        })
+
+            if video_bad_files:
+                summary["skipped_video_dirs"] += 1
+                bad_videos[video_name] = {
+                    "total_image_files": video_total_images,
+                    "bad_file_count": video_bad_count,
+                    "example_bad_files": video_bad_files,
+                }
+            else:
+                summary["usable_video_dirs"] += 1
+                summary["trainable_image_files"] += video_total_images
+                good_videos[video_name] = {
+                    "total_image_files": video_total_images,
+                }
+
+            if self._is_logging_process() and (idx % 200 == 0 or idx == len(video_dirs)):
+                print(
+                    f"DPODataset integrity progress: {idx}/{len(video_dirs)} videos scanned, "
+                    f"skipped={summary['skipped_video_dirs']}, "
+                    f"bad_images={summary['lfs_pointer_files'] + summary['invalid_image_files'] + summary['unreadable_file_count']}"
+                )
+
+        summary["all_videos_clean"] = summary["skipped_video_dirs"] == 0
+
+        return {
+            "dataset_root": self.dpo_data_root,
+            "summary": summary,
+            "good_videos": good_videos,
+            "bad_videos": bad_videos,
+        }
 
     def _load_manifest(self) -> list[dict]:
         manifest_path = os.path.join(self.dpo_data_root, "manifest.json")
@@ -79,7 +266,8 @@ class DPODataset(torch.utils.data.Dataset):
         seen = set()  # 去重: (video_dir, neg_id)，避免 part1/part2 fallback 到同一目录后重复展开
         for video_name, info in manifest.items():
             # 优先用 key 作为目录名，若不存在则从 manifest 路径字段提取实际目录
-            video_dir = os.path.join(self.dpo_data_root, video_name)
+            actual_dir_name = video_name
+            video_dir = os.path.join(self.dpo_data_root, actual_dir_name)
             if not os.path.isdir(video_dir):
                 # manifest 的 gt_frames 字段形如 "dpo_data/davis_bear/gt_frames"
                 # 或直接 "davis_bear/gt_frames"，从中提取视频目录名
@@ -88,6 +276,9 @@ class DPODataset(torch.utils.data.Dataset):
                     # 取 gt_frames 路径的父目录名作为实际目录名
                     actual_dir_name = os.path.basename(os.path.dirname(gt_path_field))
                     video_dir = os.path.join(self.dpo_data_root, actual_dir_name)
+
+            if actual_dir_name in self.bad_videos:
+                continue
 
             gt_dir = os.path.join(video_dir, "gt_frames")
             mask_dir = os.path.join(video_dir, "masks")
@@ -114,6 +305,7 @@ class DPODataset(torch.utils.data.Dataset):
 
             base = {
                 "video_name": video_name,
+                "video_dir_name": actual_dir_name,
                 "gt_dir": gt_dir,
                 "mask_dir": mask_dir,
                 "num_frames": num_frames,
@@ -137,6 +329,30 @@ class DPODataset(torch.utils.data.Dataset):
         return entries
 
     def _print_stats(self):
+        if not self._is_logging_process():
+            return
+
+        integrity = self.integrity_report.get("summary", {})
+        total_bad_images = (
+            integrity.get("lfs_pointer_files", 0)
+            + integrity.get("invalid_image_files", 0)
+            + integrity.get("unreadable_file_count", 0)
+        )
+        print(
+            "DPODataset integrity: "
+            f"videos_scanned={integrity.get('total_video_dirs_scanned', 0)}, "
+            f"usable_videos={integrity.get('usable_video_dirs', 0)}, "
+            f"skipped_videos={integrity.get('skipped_video_dirs', 0)}, "
+            f"images_scanned={integrity.get('total_image_files_scanned', 0)}, "
+            f"trainable_images={integrity.get('trainable_image_files', 0)}, "
+            f"bad_images={total_bad_images}, "
+            f"all_videos_clean={integrity.get('all_videos_clean', False)}"
+        )
+        if self.integrity_report.get("bad_videos"):
+            bad_examples = list(self.integrity_report["bad_videos"].keys())[:10]
+            print(f"DPODataset integrity: skipped bad videos (first 10) = {bad_examples}")
+        print(f"DPODataset integrity report saved to {self.integrity_report_path}")
+
         type_counts = {"davis": 0, "ytbv": 0}
         neg_counts = {"neg_1": 0, "neg_2": 0}
         for e in self.entries:
@@ -199,8 +415,19 @@ class DPODataset(torch.utils.data.Dataset):
         )
         return inputs.input_ids
 
-    def __getitem__(self, index):
-        entry = self.entries[index]
+    def _sample_replacement_index(self):
+        for _ in range(128):
+            candidate = random.randrange(len(self.entries))
+            if self.entries[candidate]["video_dir_name"] not in self.runtime_bad_videos:
+                return candidate
+        for idx, entry in enumerate(self.entries):
+            if entry["video_dir_name"] not in self.runtime_bad_videos:
+                return idx
+        return None
+
+    def _load_entry(self, entry):
+        if entry["video_dir_name"] in self.runtime_bad_videos:
+            raise RuntimeError(f"Video already marked bad at runtime: {entry['video_dir_name']}")
 
         # 选择连续 nframes 帧的起始位置
         if self.chunk_aligned:
@@ -251,3 +478,38 @@ class DPODataset(torch.utils.data.Dataset):
             "masks": torch.stack(mask_tensors),                    # [nframes, 1, H, W]
             "input_ids": self.tokenize_captions("clean background")[0],
         }
+
+    def __getitem__(self, index):
+        candidate_index = index
+        last_error = None
+
+        for _ in range(self.max_resample_attempts):
+            entry = self.entries[candidate_index]
+            video_dir_name = entry["video_dir_name"]
+
+            if video_dir_name in self.runtime_bad_videos:
+                next_index = self._sample_replacement_index()
+                if next_index is None:
+                    break
+                candidate_index = next_index
+                continue
+
+            try:
+                return self._load_entry(entry)
+            except (FileNotFoundError, OSError, IndexError, ValueError) as e:
+                self.runtime_bad_videos.add(video_dir_name)
+                last_error = e
+                if self._is_logging_process():
+                    print(
+                        f"DPODataset runtime warning: skipping video {video_dir_name} due to data error: "
+                        f"{type(e).__name__}: {e}"
+                    )
+                next_index = self._sample_replacement_index()
+                if next_index is None:
+                    break
+                candidate_index = next_index
+
+        raise RuntimeError(
+            "DPODataset could not find a valid replacement sample after skipping bad videos. "
+            f"Runtime-skipped videos={len(self.runtime_bad_videos)}. Last error: {last_error}"
+        )
