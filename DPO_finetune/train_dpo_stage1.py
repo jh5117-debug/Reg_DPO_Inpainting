@@ -21,6 +21,7 @@ import gc
 import warnings
 import logging
 import math
+import json
 import os
 import sys
 import shutil
@@ -73,6 +74,30 @@ if is_wandb_available():
 check_min_version("0.27.0.dev0")
 
 logger = get_logger(__name__)
+
+
+def save_wandb_run_info(output_dir, args):
+    """
+    将当前 W&B run 的关键信息落盘，供 launcher 进程在 crash 后恢复同一个 run，
+    并补传完整的 Slurm stdout/stderr 日志。
+    """
+    if not is_wandb_available() or wandb.run is None:
+        return
+
+    run_info = {
+        "id": wandb.run.id,
+        "project": wandb.run.project,
+        "entity": getattr(wandb.run, "entity", None) or args.wandb_entity,
+        "name": wandb.run.name,
+        "url": wandb.run.url,
+        "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
+    }
+
+    save_path = os.path.join(output_dir, "wandb_run_info.json")
+    tmp_path = save_path + ".tmp"
+    with open(tmp_path, "w") as f:
+        json.dump(run_info, f, indent=2)
+    os.replace(tmp_path, save_path)
 
 
 # ============================================================
@@ -562,6 +587,7 @@ def main(args):
         try:
             accelerator.init_trackers(args.tracker_project_name, config=tracker_config, init_kwargs=init_kwargs)
             logger.info("WandB tracker initialized successfully (early init).")
+            save_wandb_run_info(args.output_dir, args)
         except Exception as e:
             logger.warning(f"Failed to init WandB tracker: {e}. Continuing without tracking.")
 
@@ -1050,6 +1076,10 @@ if __name__ == "__main__":
         tb = traceback.format_exc()
         logger.error(f"Training crashed!\n{tb}")
         if is_wandb_available() and wandb.run is not None:
+            crash_file = os.path.join(wandb.run.dir, "train_process_traceback.txt")
+            with open(crash_file, "w") as f:
+                f.write(tb)
+            wandb.save(crash_file, policy="now")
             wandb.alert(
                 title="DPO Stage 1 Crashed",
                 text=f"```\n{tb}\n```",

@@ -7,9 +7,13 @@ run_dpo_stage1.py — DPO Stage 1 训练入口
 """
 
 import argparse
+import json
 import os
+from pathlib import Path
+import shutil
 import subprocess
 import sys
+import traceback
 
 
 def get_project_root():
@@ -68,10 +72,101 @@ def build_cmd(project_root, args):
     return cmd, dpo_data_root, ref_model_path
 
 
+def get_output_dir(project_root, args):
+    return args.output_dir or os.path.join(project_root, "dpo-finetune-stage1")
+
+
+def find_slurm_log_path(project_root):
+    logs_dir = Path(project_root) / "logs"
+    slurm_job_id = os.environ.get("SLURM_JOB_ID")
+
+    if slurm_job_id:
+        exact_path = logs_dir / f"dpo-stage1-{slurm_job_id}.out"
+        if exact_path.exists():
+            return exact_path
+
+    candidates = sorted(logs_dir.glob("dpo-stage1-*.out"), key=lambda p: p.stat().st_mtime, reverse=True)
+    return candidates[0] if candidates else None
+
+
+def upload_full_crash_log_to_wandb(project_root, output_dir, returncode):
+    run_info_path = Path(output_dir) / "wandb_run_info.json"
+    if not run_info_path.exists():
+        print(f"[launcher] W&B run info not found at {run_info_path}, skip crash log upload.", file=sys.stderr)
+        return
+
+    try:
+        import wandb
+    except Exception as e:
+        print(f"[launcher] Failed to import wandb for crash upload: {e}", file=sys.stderr)
+        return
+
+    try:
+        with open(run_info_path) as f:
+            run_info = json.load(f)
+
+        run = wandb.init(
+            project=run_info["project"],
+            entity=run_info.get("entity"),
+            id=run_info["id"],
+            resume="allow",
+            name=run_info.get("name"),
+        )
+
+        slurm_log_path = find_slurm_log_path(project_root)
+        if slurm_log_path is None or not slurm_log_path.exists():
+            wandb.alert(
+                title="DPO Stage 1 Launcher Failed",
+                text=f"Launcher exited with code {returncode}, but no Slurm log file was found.",
+                level=wandb.AlertLevel.ERROR,
+            )
+            wandb.finish(exit_code=returncode)
+            return
+
+        full_text = slurm_log_path.read_text(errors="replace")
+        tail_chars = 3500
+        full_log_name = "slurm_full_crash_output.out"
+        full_log_copy = Path(run.dir) / full_log_name
+        shutil.copyfile(slurm_log_path, full_log_copy)
+        wandb.save(str(full_log_copy), policy="now")
+
+        summary_name = "launcher_crash_summary.txt"
+        summary_copy = Path(run.dir) / summary_name
+        with open(summary_copy, "w") as f:
+            f.write(f"returncode: {returncode}\n")
+            f.write(f"slurm_log_path: {slurm_log_path}\n")
+            f.write(f"wandb_run_url: {run_info.get('url')}\n")
+            f.write("\n===== LOG TAIL =====\n")
+            f.write(full_text[-tail_chars:])
+            f.write("\n")
+        wandb.save(str(summary_copy), policy="now")
+
+        if getattr(wandb, "run", None) is not None:
+            wandb.run.summary["launcher_returncode"] = returncode
+            wandb.run.summary["slurm_full_log_uploaded"] = True
+            wandb.run.summary["slurm_log_path"] = str(slurm_log_path)
+            wandb.run.summary["slurm_full_log_file"] = full_log_name
+
+        wandb.alert(
+            title="DPO Stage 1 Launcher Failed",
+            text=(
+                f"Launcher exited with code {returncode}.\n"
+                f"Full Slurm log uploaded as `{full_log_name}`.\n\n"
+                f"Tail of the full log:\n```\n{full_text[-tail_chars:]}\n```"
+            ),
+            level=wandb.AlertLevel.ERROR,
+        )
+        wandb.finish(exit_code=returncode)
+    except Exception:
+        print("[launcher] Failed to upload full crash log to W&B.", file=sys.stderr)
+        print(traceback.format_exc(), file=sys.stderr)
+
+
 def run(args=None):
     if args is None:
         args = parse_args()
     project_root = get_project_root()
+    output_dir = get_output_dir(project_root, args)
     cmd, dpo_data_root, ref_model_path = build_cmd(project_root, args)
 
     print("=" * 60)
@@ -89,6 +184,8 @@ def run(args=None):
     print()
 
     result = subprocess.run(cmd, cwd=project_root)
+    if result.returncode != 0:
+        upload_full_crash_log_to_wandb(project_root, output_dir, result.returncode)
     return result.returncode
 
 
