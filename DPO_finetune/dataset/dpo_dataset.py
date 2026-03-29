@@ -200,6 +200,20 @@ class DPODataset(torch.utils.data.Dataset):
         return inputs.input_ids
 
     def __getitem__(self, index):
+        # 容错重试：如果帧文件损坏（PIL 无法识别），随机换一个 index
+        for _retry in range(10):
+            try:
+                return self._getitem_impl(index)
+            except Exception as e:
+                import warnings
+                entry = self.entries[index]
+                warnings.warn(
+                    f"DPODataset: skipping {entry['video_name']} (index={index}): {e}"
+                )
+                index = random.randint(0, len(self.entries) - 1)
+        raise RuntimeError(f"DPODataset: failed after 10 retries, last index={index}")
+
+    def _getitem_impl(self, index):
         entry = self.entries[index]
 
         # 选择连续 nframes 帧的起始位置
