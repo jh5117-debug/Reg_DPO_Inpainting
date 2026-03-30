@@ -230,7 +230,7 @@ def save_wandb_run_info(output_dir, args):
 # ============================================================
 # DPO Loss + Reg-DPO Diagnostics
 # ============================================================
-def compute_dpo_loss(model_pred, ref_pred, noise, beta_dpo=2500.0):
+def compute_dpo_loss(model_pred, ref_pred, noise, beta_dpo=500.0):
     """
     Diffusion-DPO loss + Reg-DPO 论文要求的诊断指标。
 
@@ -240,7 +240,7 @@ def compute_dpo_loss(model_pred, ref_pred, noise, beta_dpo=2500.0):
 
     Returns:
         loss:         DPO loss (标量)
-        diagnostics:  dict 包含所有诊断指标
+        diagnostics:  dict 包含所有诊断指标 + 跨卡聚合所需的原始 tensor
     """
     target = noise.repeat(2, 1, 1, 1)  # repeat 匹配 pos+neg
 
@@ -258,29 +258,38 @@ def compute_dpo_loss(model_pred, ref_pred, noise, beta_dpo=2500.0):
     scale_term = -0.5 * beta_dpo
     inside_term = scale_term * (model_diff - ref_diff)
 
-    implicit_acc = (inside_term > 0).sum().float() / inside_term.size(0)
+    # 本卡的 implicit_acc (后续会跨卡 gather 得到全局值)
+    implicit_acc_local = (inside_term > 0).sum().float() / inside_term.size(0)
     loss = (-1.0 * F.logsigmoid(inside_term)).mean()
 
     # === Reg-DPO 诊断指标 ===
-    # Win Gap = model_loss_w - ref_loss_w (理想为负: policy 比 ref 在正样本上更好)
     win_gap = (model_losses_w - ref_losses_w).mean()
-    # Lose Gap = model_loss_l - ref_loss_l (理想为正: policy 不去改善负样本)
     lose_gap = (model_losses_l - ref_losses_l).mean()
-
-    # Reward Margin: ref model 本身对 pos/neg 的区分度 (理想为负: ref 在正样本上更好)
     reward_margin = (ref_losses_w - ref_losses_l).mean()
-
-    # Sigma Term: sigmoid(inside_term) 均值，检测饱和 (接近 1.0 = 梯度消失)
     sigma_term = torch.sigmoid(inside_term).mean()
-
-    # KL Divergence: policy 偏离 ref 的程度 (太大 = catastrophic forgetting)
     all_model_losses = model_losses.mean()
     all_ref_losses = ref_losses.mean()
     kl_div = 0.5 * (all_model_losses - all_ref_losses)
 
+    # === inside_term 统计 + loser-degradation 分析 ===
+    # “靠 loser 变差赢的” = DPO 判断正确的样本中, loser 退化的贡献 > winner 提升的贡献
+    #   winner_improvement = max(0, -(model_loss_w - ref_loss_w))  # 正值 = policy 在 winner 上变好
+    #   loser_degradation  = max(0,   model_loss_l - ref_loss_l)   # 正值 = policy 在 loser  上变差
+    #   loser_dominant iff loser_degradation > winner_improvement
+    with torch.no_grad():
+        correct_mask = inside_term > 0
+        per_win_gap = model_losses_w - ref_losses_w   # per-sample
+        per_lose_gap = model_losses_l - ref_losses_l  # per-sample
+        winner_improvement = (-per_win_gap).clamp(min=0)  # 取正部: policy 在 winner 上改善的量
+        loser_degradation = per_lose_gap.clamp(min=0)     # 取正部: policy 在 loser 上退化的量
+        loser_dominant_mask = loser_degradation > winner_improvement
+        loser_dominant_wins = (correct_mask & loser_dominant_mask).sum().float()
+        n_correct = correct_mask.sum().float()
+        loser_degrade_ratio = loser_dominant_wins / n_correct.clamp(min=1)
+
     diagnostics = {
         "dpo_loss": loss.detach().item(),
-        "implicit_acc": implicit_acc.detach().item(),
+        "implicit_acc": implicit_acc_local.detach().item(),
         "mse_w": model_losses_w.mean().detach().item(),
         "mse_l": model_losses_l.mean().detach().item(),
         "ref_mse_w": ref_losses_w.mean().detach().item(),
@@ -290,7 +299,20 @@ def compute_dpo_loss(model_pred, ref_pred, noise, beta_dpo=2500.0):
         "reward_margin": reward_margin.detach().item(),
         "sigma_term": sigma_term.detach().item(),
         "kl_divergence": kl_div.detach().item(),
+        # inside_term 统计
+        "inside_term_mean": inside_term.detach().mean().item(),
+        "inside_term_min": inside_term.detach().min().item(),
+        "inside_term_max": inside_term.detach().max().item(),
+        # loser-dominant: 主要靠 loser 退化获胜的比例
+        "loser_degrade_ratio": loser_degrade_ratio.detach().item(),
+        "loser_degrade_count": int(loser_dominant_wins.detach().item()),
+        "n_correct_local": int(n_correct.detach().item()),
+        "n_total_local": inside_term.size(0),
     }
+    # 保留原始 tensor 供跨卡 gather
+    diagnostics["_inside_term"] = inside_term.detach()
+    diagnostics["_winner_improvement"] = winner_improvement.detach()
+    diagnostics["_loser_degradation"] = loser_degradation.detach()
 
     return loss, diagnostics
 
@@ -307,19 +329,77 @@ def compute_dpo_grad_norm(loss, params_to_optimize):
     return total_norm ** 0.5
 
 
+def gather_dpo_diagnostics(diagnostics, accelerator):
+    """
+    跨卡 gather inside_term，计算全局 implicit_acc / inside_term 统计 / loser_degrade。
+    失败时在主进程打 warning，并标记 scope=rank0。
+    """
+    inside_term_local = diagnostics.get("_inside_term")
+    winner_imp_local = diagnostics.get("_winner_improvement")
+    loser_deg_local = diagnostics.get("_loser_degradation")
+
+    if inside_term_local is None:
+        diagnostics["_scope"] = "rank0"
+        return diagnostics
+
+    try:
+        all_inside = accelerator.gather(inside_term_local)
+        all_winner_imp = accelerator.gather(winner_imp_local)
+        all_loser_deg = accelerator.gather(loser_deg_local)
+
+        n_total_global = all_inside.size(0)
+        n_correct_global = (all_inside > 0).sum().float()
+        global_acc = n_correct_global / n_total_global
+
+        global_inside_mean = all_inside.mean().item()
+        global_inside_min = all_inside.min().item()
+        global_inside_max = all_inside.max().item()
+
+        # 全局 loser-dominant: loser 退化贡献 > winner 提升贡献
+        correct_mask_global = all_inside > 0
+        loser_dominant_global = (correct_mask_global & (all_loser_deg > all_winner_imp)).sum().float()
+        global_loser_ratio = loser_dominant_global / n_correct_global.clamp(min=1)
+
+        diagnostics["implicit_acc"] = global_acc.item()
+        diagnostics["inside_term_mean"] = global_inside_mean
+        diagnostics["inside_term_min"] = global_inside_min
+        diagnostics["inside_term_max"] = global_inside_max
+        diagnostics["loser_degrade_ratio"] = global_loser_ratio.item()
+        diagnostics["loser_degrade_count"] = int(loser_dominant_global.item())
+        diagnostics["n_correct_global"] = int(n_correct_global.item())
+        diagnostics["n_total_global"] = n_total_global
+        diagnostics["_scope"] = "global"
+    except Exception as e:
+        # gather 失败: 打 warning + 标记 scope 为 rank0，不静默吞掉
+        if accelerator.is_main_process:
+            logger.warning(f"gather_dpo_diagnostics failed, falling back to rank0 values: {e}")
+        diagnostics["_scope"] = "rank0"
+
+    # 清理不可序列化的 tensor
+    diagnostics.pop("_inside_term", None)
+    diagnostics.pop("_winner_improvement", None)
+    diagnostics.pop("_loser_degradation", None)
+    return diagnostics
+
+
 def format_dpo_diagnostics(step, diag, grad_norm=None, extra=None):
     """
     格式化 DPO 诊断指标为美观的 ASCII 表格，每 300 步输出。
+    指标名称前缀: [R0] = rank0 本卡, [G] = 全局 gather。
     """
-    sep = "═" * 72
-    thin = "─" * 72
+    scope = diag.get("_scope", "rank0")
+    scope_tag_local = "[R0]" if scope != "global" else "[R0]"
+    scope_tag_global = "[G]" if scope == "global" else "[R0]"
+
+    sep = "═" * 76
+    thin = "─" * 76
     lines = [
         "",
         f"  {sep}",
-        f"  ║  DPO Diagnostics @ Step {step:>6d}".ljust(73) + "║",
+        f"  ║  DPO Diagnostics @ Step {step:>6d}  (scope: {scope})".ljust(77) + "║",
         f"  {sep}",
-        f"  ║  {'Metric':<20s}  {'Value':>12s}  {'Ideal':>12s}  {'Status':>10s}  ║",
-        f"  ║  {thin[:68]}  ║",
+        f"  ║  {'Metric':<24s}  {'Value':>12s}  {'Ideal':>12s}  {'Status':>10s}  ║",
+        f"  ║  {thin[:72]}  ║",
     ]
 
     def status_icon(val, ideal_dir, threshold=0):
@@ -332,31 +412,48 @@ def format_dpo_diagnostics(step, diag, grad_norm=None, extra=None):
         return "—"
 
     rows = [
-        ("L_dpo",         diag["dpo_loss"],     "↓ decreasing", status_icon(diag["dpo_loss"], "neg", 0.693)),
-        ("Implicit Acc",  diag["implicit_acc"], "0.5~0.9",      status_icon(diag["implicit_acc"], "mid")),
-        ("Win Gap",       diag["win_gap"],      "< 0 (neg)",    status_icon(diag["win_gap"], "neg")),
-        ("Lose Gap",      diag["lose_gap"],     "> 0 (pos)",    status_icon(diag["lose_gap"], "pos")),
-        ("Reward Margin",  diag["reward_margin"],"< 0 (neg)",    status_icon(diag["reward_margin"], "neg")),
-        ("Sigma Term",    diag["sigma_term"],   "0.5~0.9",      status_icon(diag["sigma_term"], "mid")),
-        ("KL Divergence", diag["kl_divergence"], "small",        "—"),
-        ("MSE (win)",     diag["mse_w"],        "↓",            "—"),
-        ("MSE (lose)",    diag["mse_l"],        "↑ or stable",  "—"),
-        ("Ref MSE (win)", diag["ref_mse_w"],    "baseline",     "—"),
-        ("Ref MSE (lose)",diag["ref_mse_l"],    "baseline",     "—"),
+        (f"{scope_tag_local} L_dpo",         diag["dpo_loss"],     "↓ decreasing", status_icon(diag["dpo_loss"], "neg", 0.693)),
+        (f"{scope_tag_global} Implicit Acc",  diag["implicit_acc"], "0.5~0.9",      status_icon(diag["implicit_acc"], "mid")),
+        (f"{scope_tag_local} Win Gap",       diag["win_gap"],      "< 0 (neg)",    status_icon(diag["win_gap"], "neg")),
+        (f"{scope_tag_local} Lose Gap",      diag["lose_gap"],     "> 0 (pos)",    status_icon(diag["lose_gap"], "pos")),
+        (f"{scope_tag_local} Reward Margin", diag["reward_margin"],"< 0 (neg)",    status_icon(diag["reward_margin"], "neg")),
+        (f"{scope_tag_local} Sigma Term",    diag["sigma_term"],   "0.5~0.9",      status_icon(diag["sigma_term"], "mid")),
+        (f"{scope_tag_local} KL Divergence", diag["kl_divergence"], "small",        "—"),
+        (f"{scope_tag_local} MSE (win)",     diag["mse_w"],        "↓",            "—"),
+        (f"{scope_tag_local} MSE (lose)",    diag["mse_l"],        "↑ or stable",  "—"),
+        (f"{scope_tag_local} Ref MSE (win)", diag["ref_mse_w"],    "baseline",     "—"),
+        (f"{scope_tag_local} Ref MSE (lose)",diag["ref_mse_l"],    "baseline",     "—"),
     ]
 
     if grad_norm is not None:
-        rows.append(("DGR (grad norm)", grad_norm, "> 0 (alive)", status_icon(grad_norm, "pos", 1e-6)))
+        rows.append((f"{scope_tag_local} DGR (grad norm)", grad_norm, "> 0 (alive)", status_icon(grad_norm, "pos", 1e-6)))
         if diag.get("grad_norm_ratio") is not None:
-            rows.append(("Grad Norm Ratio", diag["grad_norm_ratio"], "> 0.01", status_icon(diag["grad_norm_ratio"], "pos", 0.01)))
+            rows.append((f"{scope_tag_local} Grad Norm Ratio", diag["grad_norm_ratio"], "> 0.01", status_icon(diag["grad_norm_ratio"], "pos", 0.01)))
+
+    # inside_term 统计 (gather 后为全局)
+    if "inside_term_mean" in diag:
+        rows.append((f"{scope_tag_global} InsideTerm mean", diag["inside_term_mean"], "moderate", "—"))
+        rows.append((f"{scope_tag_global} InsideTerm min",  diag["inside_term_min"],  "—",       "—"))
+        rows.append((f"{scope_tag_global} InsideTerm max",  diag["inside_term_max"],  "—",       "—"))
+
+    # loser-dominant 分析 (gather 后为全局)
+    if "loser_degrade_ratio" in diag:
+        ldr = diag["loser_degrade_ratio"]
+        rows.append((f"{scope_tag_global} Loser Dominant %", ldr, "< 0.5", status_icon(ldr, "neg", 0.5)))
 
     for name, val, ideal, st in rows:
-        lines.append(f"  ║  {name:<20s}  {val:>12.6f}  {ideal:>12s}  {st:>10s}  ║")
+        lines.append(f"  ║  {name:<24s}  {val:>12.6f}  {ideal:>12s}  {st:>10s}  ║")
 
     if extra:
-        lines.append(f"  ║  {thin[:68]}  ║")
+        lines.append(f"  ║  {thin[:72]}  ║")
         for k, v in extra.items():
-            lines.append(f"  ║  {k:<20s}  {v:>12.4f}  {'':>12s}  {'':>10s}  ║")
+            lines.append(f"  ║  {k:<24s}  {v:>12.4f}  {'':>12s}  {'':>10s}  ║")
+
+    # 样本计数摘要行
+    n_correct = diag.get("n_correct_global", diag.get("n_correct_local", "?"))
+    n_total = diag.get("n_total_global", diag.get("n_total_local", "?"))
+    ldc = diag.get("loser_degrade_count", "?")
+    lines.append(f"  ║  {scope_tag_global} Samples: {n_correct}/{n_total} correct, {ldc} loser-dominant".ljust(77) + "║")
 
     lines.append(f"  {sep}")
     lines.append("")
@@ -625,8 +722,8 @@ def parse_args(input_args=None):
                         help="DPO 偏好对数据集根目录")
     parser.add_argument("--ref_model_path", type=str, default=None,
                         help="Ref model 权重路径 (SFT 后的 DiffuEraser 权重，含 unet_main/ 和 brushnet/)")
-    parser.add_argument("--beta_dpo", type=float, default=2500.0,
-                        help="DPO 温度系数 beta")
+    parser.add_argument("--beta_dpo", type=float, default=500.0,
+                        help="DPO 温度系数 beta (推荐 500~1000，过大导致 sigmoid 饱和)")
     parser.add_argument("--davis_oversample", type=int, default=10,
                         help="DAVIS 视频过采样倍数")
     parser.add_argument("--chunk_aligned", action="store_true",
@@ -1079,6 +1176,8 @@ def main(args):
                 loss, diagnostics = compute_dpo_loss(
                     model_pred, ref_pred, noise, beta_dpo=args.beta_dpo
                 )
+                # 跨卡 gather: 全局 implicit_acc / inside_term 统计
+                diagnostics = gather_dpo_diagnostics(diagnostics, accelerator)
 
                 torch.cuda.empty_cache()
                 gc.collect()
@@ -1153,25 +1252,30 @@ def main(args):
                                     logger.warning(f"Failed to save best weights: {e}")
 
             # === WandB + progress bar logging (每步) ===
+            scope_prefix = "global/" if diagnostics.get("_scope") == "global" else "rank0/"
             logs = {
-                "dpo_loss": diagnostics["dpo_loss"],
-                "implicit_acc": diagnostics["implicit_acc"],
-                "mse_w": diagnostics["mse_w"],
-                "mse_l": diagnostics["mse_l"],
-                "win_gap": diagnostics["win_gap"],
-                "lose_gap": diagnostics["lose_gap"],
-                "reward_margin": diagnostics["reward_margin"],
-                "sigma_term": diagnostics["sigma_term"],
-                "kl_divergence": diagnostics["kl_divergence"],
+                "rank0/dpo_loss": diagnostics["dpo_loss"],
+                f"{scope_prefix}implicit_acc": diagnostics["implicit_acc"],
+                "rank0/mse_w": diagnostics["mse_w"],
+                "rank0/mse_l": diagnostics["mse_l"],
+                "rank0/win_gap": diagnostics["win_gap"],
+                "rank0/lose_gap": diagnostics["lose_gap"],
+                "rank0/reward_margin": diagnostics["reward_margin"],
+                "rank0/sigma_term": diagnostics["sigma_term"],
+                "rank0/kl_divergence": diagnostics["kl_divergence"],
+                f"{scope_prefix}inside_term_mean": diagnostics.get("inside_term_mean", 0),
+                f"{scope_prefix}inside_term_min": diagnostics.get("inside_term_min", 0),
+                f"{scope_prefix}inside_term_max": diagnostics.get("inside_term_max", 0),
+                f"{scope_prefix}loser_dominant_ratio": diagnostics.get("loser_degrade_ratio", 0),
                 "lr": lr_scheduler.get_last_lr()[0],
             }
             if grad_norm is not None:
-                logs["dgr_grad_norm"] = grad_norm
+                logs["rank0/dgr_grad_norm"] = grad_norm
                 if initial_grad_norm is None:
                     initial_grad_norm = grad_norm
                 if initial_grad_norm > 0:
                     ratio = grad_norm / initial_grad_norm
-                    logs["grad_norm_ratio"] = ratio
+                    logs["rank0/grad_norm_ratio"] = ratio
                     diagnostics["grad_norm_ratio"] = ratio
             progress_bar.set_postfix(**{k: f"{v:.4f}" if isinstance(v, float) else v for k, v in list(logs.items())[:6]})
             accelerator.log(logs, step=global_step)

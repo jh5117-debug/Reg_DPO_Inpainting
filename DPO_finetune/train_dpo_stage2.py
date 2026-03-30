@@ -66,6 +66,7 @@ from DPO_finetune.dataset.dpo_dataset import DPODataset
 from DPO_finetune.train_dpo_stage1 import (
     compute_dpo_loss,
     compute_dpo_grad_norm,
+    gather_dpo_diagnostics,
     format_dpo_diagnostics,
     print_model_info,
     save_wandb_run_info,
@@ -387,7 +388,8 @@ def parse_args(input_args=None):
     parser.add_argument("--dpo_data_root", type=str, default="data/DPO_Finetune_data")
     parser.add_argument("--ref_model_path", type=str, default=None,
                         help="Ref model 权重路径 (SFT 后的完整 DiffuEraser 权重)")
-    parser.add_argument("--beta_dpo", type=float, default=2500.0)
+    parser.add_argument("--beta_dpo", type=float, default=500.0,
+                        help="DPO 温度系数 beta (推荐 500~1000，过大导致 sigmoid 饱和)")
     parser.add_argument("--davis_oversample", type=int, default=10)
     parser.add_argument("--chunk_aligned", action="store_true")
 
@@ -827,6 +829,8 @@ def main(args):
                 loss, diagnostics = compute_dpo_loss(
                     model_pred, ref_pred, noise, beta_dpo=args.beta_dpo
                 )
+                # 跨卡 gather: 全局 implicit_acc / inside_term 统计
+                diagnostics = gather_dpo_diagnostics(diagnostics, accelerator)
 
                 torch.cuda.empty_cache()
                 gc.collect()
@@ -900,25 +904,30 @@ def main(args):
                                     logger.warning(f"Failed to save best weights: {e}")
 
             # === WandB + progress bar logging (每步) ===
+            scope_prefix = "global/" if diagnostics.get("_scope") == "global" else "rank0/"
             logs = {
-                "dpo_loss": diagnostics["dpo_loss"],
-                "implicit_acc": diagnostics["implicit_acc"],
-                "mse_w": diagnostics["mse_w"],
-                "mse_l": diagnostics["mse_l"],
-                "win_gap": diagnostics["win_gap"],
-                "lose_gap": diagnostics["lose_gap"],
-                "reward_margin": diagnostics["reward_margin"],
-                "sigma_term": diagnostics["sigma_term"],
-                "kl_divergence": diagnostics["kl_divergence"],
+                "rank0/dpo_loss": diagnostics["dpo_loss"],
+                f"{scope_prefix}implicit_acc": diagnostics["implicit_acc"],
+                "rank0/mse_w": diagnostics["mse_w"],
+                "rank0/mse_l": diagnostics["mse_l"],
+                "rank0/win_gap": diagnostics["win_gap"],
+                "rank0/lose_gap": diagnostics["lose_gap"],
+                "rank0/reward_margin": diagnostics["reward_margin"],
+                "rank0/sigma_term": diagnostics["sigma_term"],
+                "rank0/kl_divergence": diagnostics["kl_divergence"],
+                f"{scope_prefix}inside_term_mean": diagnostics.get("inside_term_mean", 0),
+                f"{scope_prefix}inside_term_min": diagnostics.get("inside_term_min", 0),
+                f"{scope_prefix}inside_term_max": diagnostics.get("inside_term_max", 0),
+                f"{scope_prefix}loser_dominant_ratio": diagnostics.get("loser_degrade_ratio", 0),
                 "lr": lr_scheduler.get_last_lr()[0],
             }
             if grad_norm is not None:
-                logs["dgr_grad_norm"] = grad_norm
+                logs["rank0/dgr_grad_norm"] = grad_norm
                 if initial_grad_norm is None:
                     initial_grad_norm = grad_norm
                 if initial_grad_norm > 0:
                     ratio = grad_norm / initial_grad_norm
-                    logs["grad_norm_ratio"] = ratio
+                    logs["rank0/grad_norm_ratio"] = ratio
                     diagnostics["grad_norm_ratio"] = ratio
             progress_bar.set_postfix(**{k: f"{v:.4f}" if isinstance(v, float) else v for k, v in list(logs.items())[:6]})
             accelerator.log(logs, step=global_step)
