@@ -77,15 +77,26 @@ def get_output_dir(project_root, args):
 
 
 def find_slurm_log_path(project_root):
-    logs_dir = Path(project_root) / "logs"
     slurm_job_id = os.environ.get("SLURM_JOB_ID")
+    candidate_dirs = [
+        Path(project_root) / "logs",
+        Path(project_root) / "log",
+        Path(project_root),
+    ]
 
     if slurm_job_id:
-        exact_path = logs_dir / f"dpo-stage1-{slurm_job_id}.out"
-        if exact_path.exists():
-            return exact_path
+        for log_dir in candidate_dirs:
+            exact_path = log_dir / f"dpo-stage1-{slurm_job_id}.out"
+            if exact_path.exists():
+                return exact_path
 
-    candidates = sorted(logs_dir.glob("dpo-stage1-*.out"), key=lambda p: p.stat().st_mtime, reverse=True)
+    candidates = []
+    for log_dir in candidate_dirs:
+        if not log_dir.exists():
+            continue
+        candidates.extend(log_dir.glob("dpo-stage1-*.out"))
+
+    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
     return candidates[0] if candidates else None
 
 

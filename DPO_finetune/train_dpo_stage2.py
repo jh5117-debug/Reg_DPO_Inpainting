@@ -63,7 +63,15 @@ from libs.brushnet_CA import BrushNetModel
 from libs.unet_2d_condition import UNet2DConditionModel
 from libs.unet_motion_model import UNetMotionModel, MotionAdapter
 from DPO_finetune.dataset.dpo_dataset import DPODataset
-from DPO_finetune.train_dpo_stage1 import compute_dpo_loss, compute_dpo_grad_norm, format_dpo_diagnostics, print_model_info
+from DPO_finetune.train_dpo_stage1 import (
+    compute_dpo_loss,
+    compute_dpo_grad_norm,
+    format_dpo_diagnostics,
+    print_model_info,
+    save_wandb_run_info,
+    setup_process_console_capture,
+    sync_console_logs_to_wandb,
+)
 from dataset.file_client import FileClient
 from dataset.img_util import imfrombytes
 
@@ -431,6 +439,8 @@ def main(args):
         log_with=args.report_to,
         project_config=accelerator_project_config,
     )
+    setup_process_console_capture(args.output_dir)
+    accelerator.wait_for_everyone()
 
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
@@ -466,8 +476,14 @@ def main(args):
         try:
             accelerator.init_trackers(args.tracker_project_name, config=tracker_config, init_kwargs=init_kwargs)
             logger.info("WandB tracker initialized successfully (early init).")
+            save_wandb_run_info(args.output_dir, args)
+            sync_console_logs_to_wandb(args.output_dir, policy="live")
         except Exception as e:
-            logger.warning(f"Failed to init WandB tracker: {e}. Continuing without tracking.")
+            logger.error(f"Failed to init WandB tracker: {e}")
+            raise RuntimeError(
+                "WandB tracker initialization failed before training started. "
+                "Aborting to avoid running without a visible W&B run."
+            ) from e
 
     # Load tokenizer
     if args.tokenizer_name:
@@ -690,6 +706,8 @@ def main(args):
     )
 
     for epoch in range(first_epoch, args.num_train_epochs):
+        if hasattr(train_dataset, "set_epoch"):
+            train_dataset.set_epoch(epoch)
         for step, batch in enumerate(train_dataloader):
             with accelerator.accumulate(unet_main, brushnet):
                 torch.cuda.empty_cache()
@@ -925,6 +943,7 @@ def main(args):
                 wandb.log_artifact(artifact)
             except Exception as e:
                 logger.warning(f"Failed to upload last weights: {e}")
+        sync_console_logs_to_wandb(args.output_dir, policy="now")
 
     accelerator.end_training()
 
@@ -938,10 +957,14 @@ if __name__ == "__main__":
         tb = traceback.format_exc()
         logger.error(f"Training crashed!\n{tb}")
         if is_wandb_available() and wandb.run is not None:
-            wandb.alert(
-                title="DPO Stage 2 Crashed",
-                text=f"```\n{tb}\n```",
-                level=wandb.AlertLevel.ERROR,
-            )
-            wandb.finish(exit_code=1)
+            try:
+                sync_console_logs_to_wandb(args.output_dir, policy="now")
+                wandb.alert(
+                    title="DPO Stage 2 Crashed",
+                    text=f"```\n{tb}\n```",
+                    level=wandb.AlertLevel.ERROR,
+                )
+                wandb.finish(exit_code=1)
+            except Exception:
+                pass
         raise

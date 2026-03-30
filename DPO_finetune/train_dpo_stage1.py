@@ -16,6 +16,7 @@ DPO Stage 1 Training — DiffuEraser DPO Finetune
 """
 
 import argparse
+import atexit
 import contextlib
 import gc
 import warnings
@@ -25,6 +26,8 @@ import json
 import os
 import sys
 import shutil
+import glob
+import threading
 from pathlib import Path
 import cv2
 import numpy as np
@@ -74,6 +77,130 @@ if is_wandb_available():
 check_min_version("0.27.0.dev0")
 
 logger = get_logger(__name__)
+
+
+class TeeStream:
+    """Mirror a text stream to both the original stream and a log file."""
+
+    def __init__(self, original_stream, log_fp, lock):
+        self.original_stream = original_stream
+        self.log_fp = log_fp
+        self.lock = lock
+
+    def write(self, data):
+        if not data:
+            return 0
+        with self.lock:
+            written = self.original_stream.write(data)
+            try:
+                self.log_fp.write(data)
+                self.log_fp.flush()
+            except Exception:
+                pass
+        return written
+
+    def flush(self):
+        with self.lock:
+            self.original_stream.flush()
+            try:
+                self.log_fp.flush()
+            except Exception:
+                pass
+
+    def writelines(self, lines):
+        for line in lines:
+            self.write(line)
+
+    def isatty(self):
+        return self.original_stream.isatty()
+
+    def fileno(self):
+        return self.original_stream.fileno()
+
+    @property
+    def encoding(self):
+        return getattr(self.original_stream, "encoding", None)
+
+    @property
+    def errors(self):
+        return getattr(self.original_stream, "errors", None)
+
+    def __getattr__(self, name):
+        return getattr(self.original_stream, name)
+
+
+def get_console_log_dir(output_dir):
+    return os.path.join(output_dir, "console_logs")
+
+
+def setup_process_console_capture(output_dir):
+    """
+    将当前进程的 stdout/stderr 显式 tee 到 rank 专属文本文件。
+    这样即使 W&B Logs 页面不完整，run Files 里也能拿到完整文本日志。
+    """
+    rank = os.environ.get("RANK", "0")
+    log_dir = get_console_log_dir(output_dir)
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, f"rank{rank}.log")
+
+    # 避免重复包裹 stdout/stderr
+    if getattr(sys.stdout, "_wandb_console_log_path", None) == log_path and \
+       getattr(sys.stderr, "_wandb_console_log_path", None) == log_path:
+        return log_path
+
+    log_fp = open(log_path, "a", buffering=1, encoding="utf-8", errors="replace")
+    lock = threading.Lock()
+
+    stdout_tee = TeeStream(sys.stdout, log_fp, lock)
+    stderr_tee = TeeStream(sys.stderr, log_fp, lock)
+    stdout_tee._wandb_console_log_path = log_path
+    stderr_tee._wandb_console_log_path = log_path
+
+    sys.stdout = stdout_tee
+    sys.stderr = stderr_tee
+
+    def _cleanup():
+        # 先恢复原始流，再关文件，防止解释器退出时 flush 已关闭的 log_fp
+        try:
+            sys.stdout = stdout_tee.original_stream
+        except Exception:
+            pass
+        try:
+            sys.stderr = stderr_tee.original_stream
+        except Exception:
+            pass
+        try:
+            log_fp.flush()
+        finally:
+            try:
+                log_fp.close()
+            except Exception:
+                pass
+
+    atexit.register(_cleanup)
+    return log_path
+
+
+def sync_console_logs_to_wandb(output_dir, policy="live"):
+    """将 console log 文件同步到 W&B。内部完全容错，不抛异常。"""
+    if not is_wandb_available() or wandb.run is None:
+        return
+
+    try:
+        log_dir = get_console_log_dir(output_dir)
+        log_paths = sorted(glob.glob(os.path.join(log_dir, "*.log")))
+        for log_path in log_paths:
+            wandb.save(log_path, policy=policy)
+
+        if log_paths:
+            wandb.run.summary["console_log_dir"] = log_dir
+            wandb.run.summary["console_log_count"] = len(log_paths)
+    except Exception as e:
+        # 不让 W&B 同步失败掩盖原始训练错误，或把成功训练变成失败退出
+        try:
+            logger.warning(f"sync_console_logs_to_wandb failed (non-fatal): {e}")
+        except Exception:
+            pass
 
 
 def save_wandb_run_info(output_dir, args):
@@ -551,6 +678,8 @@ def main(args):
         log_with=args.report_to,
         project_config=accelerator_project_config,
     )
+    setup_process_console_capture(args.output_dir)
+    accelerator.wait_for_everyone()
 
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
@@ -588,8 +717,13 @@ def main(args):
             accelerator.init_trackers(args.tracker_project_name, config=tracker_config, init_kwargs=init_kwargs)
             logger.info("WandB tracker initialized successfully (early init).")
             save_wandb_run_info(args.output_dir, args)
+            sync_console_logs_to_wandb(args.output_dir, policy="live")
         except Exception as e:
-            logger.warning(f"Failed to init WandB tracker: {e}. Continuing without tracking.")
+            logger.error(f"Failed to init WandB tracker: {e}")
+            raise RuntimeError(
+                "WandB tracker initialization failed before training started. "
+                "Aborting to avoid running without a visible W&B run."
+            ) from e
 
     # Load tokenizer
     if args.tokenizer_name:
@@ -835,6 +969,8 @@ def main(args):
     )
 
     for epoch in range(first_epoch, args.num_train_epochs):
+        if hasattr(train_dataset, "set_epoch"):
+            train_dataset.set_epoch(epoch)
         for step, batch in enumerate(train_dataloader):
             with accelerator.accumulate(unet_main, brushnet):
                 torch.cuda.empty_cache()
@@ -1063,6 +1199,7 @@ def main(args):
                 wandb.log_artifact(artifact)
             except Exception as e:
                 logger.warning(f"Failed to upload last weights: {e}")
+        sync_console_logs_to_wandb(args.output_dir, policy="now")
 
     accelerator.end_training()
 
@@ -1076,14 +1213,18 @@ if __name__ == "__main__":
         tb = traceback.format_exc()
         logger.error(f"Training crashed!\n{tb}")
         if is_wandb_available() and wandb.run is not None:
-            crash_file = os.path.join(wandb.run.dir, "train_process_traceback.txt")
-            with open(crash_file, "w") as f:
-                f.write(tb)
-            wandb.save(crash_file, policy="now")
-            wandb.alert(
-                title="DPO Stage 1 Crashed",
-                text=f"```\n{tb}\n```",
-                level=wandb.AlertLevel.ERROR,
-            )
-            wandb.finish(exit_code=1)
+            try:
+                sync_console_logs_to_wandb(args.output_dir, policy="now")
+                crash_file = os.path.join(wandb.run.dir, "train_process_traceback.txt")
+                with open(crash_file, "w") as f:
+                    f.write(tb)
+                wandb.save(crash_file, policy="now")
+                wandb.alert(
+                    title="DPO Stage 1 Crashed",
+                    text=f"```\n{tb}\n```",
+                    level=wandb.AlertLevel.ERROR,
+                )
+                wandb.finish(exit_code=1)
+            except Exception:
+                pass
         raise

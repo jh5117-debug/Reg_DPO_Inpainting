@@ -9,6 +9,13 @@
 #SBATCH --time=48:00:00
 #SBATCH --output=logs/dpo-stage1-%j.out
 
+set -euo pipefail
+
+if [[ -z "${PROJECT_HOME:-}" ]]; then
+  echo "PROJECT_HOME is not set. Please export PROJECT_HOME before running sbatch." >&2
+  exit 1
+fi
+
 PROJECT_ROOT="${PROJECT_HOME}/dev/Reg_DPO_Inpainting"
 
 NUM_GPUS=${NUM_GPUS:-8}
@@ -33,6 +40,12 @@ DAVIS_OVERSAMPLE=${DAVIS_OVERSAMPLE:-10}
 
 source ~/.bashrc
 conda activate diffueraser
+
+if [[ ! -d "$PROJECT_ROOT" ]]; then
+  echo "PROJECT_ROOT does not exist: $PROJECT_ROOT" >&2
+  exit 1
+fi
+
 cd "$PROJECT_ROOT"
 
 # === 所有缓存/日志/artifacts 必须在项目目录内，禁止写入 home ===
@@ -40,6 +53,12 @@ export WANDB_DIR="${PROJECT_ROOT}/.wandb_cache"
 export WANDB_CACHE_DIR="${PROJECT_ROOT}/.wandb_cache"
 export WANDB_DATA_DIR="${PROJECT_ROOT}/.wandb_cache"
 export WANDB_CONFIG_DIR="${PROJECT_ROOT}/.wandb_cache/config"
+if [[ -z "${WANDB_API_KEY:-}" && -f "${HOME}/.netrc" ]]; then
+  WANDB_API_KEY_FROM_NETRC=$(grep -A2 'api.wandb.ai' "${HOME}/.netrc" | grep password | awk '{print $2}' | head -n 1 || true)
+  if [[ -n "${WANDB_API_KEY_FROM_NETRC}" ]]; then
+    export WANDB_API_KEY="${WANDB_API_KEY_FROM_NETRC}"
+  fi
+fi
 export HF_HOME="${PROJECT_ROOT}/.hf_cache"
 export TRANSFORMERS_CACHE="${PROJECT_ROOT}/.hf_cache"
 mkdir -p "${WANDB_DIR}" "${WANDB_CONFIG_DIR}" "${HF_HOME}"

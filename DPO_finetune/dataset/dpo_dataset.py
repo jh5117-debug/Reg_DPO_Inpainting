@@ -19,6 +19,7 @@ DPO 偏好对数据集 — 用于 DiffuEraser DPO Finetune
   - BrushNet 条件统一使用 GT masked image（防信息泄漏）
   - DAVIS 视频 10x 过采样以平衡数据量
   - 支持读取 meta.json chunk 边界进行对齐采样（Stage 2 可选）
+  - 每个视频的合法 start 先无放回穷尽一轮，再重新洗牌重复
 """
 
 import json
@@ -50,6 +51,9 @@ class DPODataset(torch.utils.data.Dataset):
         self.dpo_data_root = dpo_data_root or getattr(args, "dpo_data_root", "data/DPO_Finetune_data")
         self.davis_oversample = getattr(args, "davis_oversample", 10)
         self.chunk_aligned = getattr(args, "chunk_aligned", False)
+        self.base_seed = int(getattr(args, "seed", 0) or 0)
+        self.current_epoch = 0
+        self._cycle_order_cache = {}
 
         self.img_transform = transforms.Compose([
             transforms.Resize(self.size, interpolation=transforms.InterpolationMode.BILINEAR),
@@ -318,15 +322,25 @@ class DPODataset(torch.utils.data.Dataset):
                 dedup_key = (video_dir, neg_id)
                 if os.path.isdir(neg_dir) and dedup_key not in seen:
                     seen.add(dedup_key)
-                    entries.append({**base, "neg_dir": neg_dir, "neg_id": neg_id})
+                    entry = {**base, "neg_dir": neg_dir, "neg_id": neg_id}
+                    valid_starts = self._enumerate_valid_starts(entry)
+                    if not valid_starts:
+                        continue
+                    entry["valid_starts"] = tuple(valid_starts)
+                    entry["cycle_key"] = f"{actual_dir_name}:{neg_id}"
+                    entries.append(entry)
 
         # DAVIS 10x 过采样
-        if self.davis_oversample > 1:
-            davis_entries = [e for e in entries if e["video_name"].startswith("davis_")]
-            ytbv_entries = [e for e in entries if not e["video_name"].startswith("davis_")]
-            entries = davis_entries * self.davis_oversample + ytbv_entries
+        expanded_entries = []
+        for entry in entries:
+            repeats = self.davis_oversample if entry["video_name"].startswith("davis_") and self.davis_oversample > 1 else 1
+            for cycle_slot in range(repeats):
+                expanded_entry = dict(entry)
+                expanded_entry["cycle_repeats"] = repeats
+                expanded_entry["cycle_slot"] = cycle_slot
+                expanded_entries.append(expanded_entry)
 
-        return entries
+        return expanded_entries
 
     def _print_stats(self):
         if not self._is_logging_process():
@@ -355,15 +369,25 @@ class DPODataset(torch.utils.data.Dataset):
 
         type_counts = {"davis": 0, "ytbv": 0}
         neg_counts = {"neg_1": 0, "neg_2": 0}
+        start_counts = []
         for e in self.entries:
             if e["video_name"].startswith("davis_"):
                 type_counts["davis"] += 1
             else:
                 type_counts["ytbv"] += 1
             neg_counts[e.get("neg_id", "unknown")] = neg_counts.get(e.get("neg_id", "unknown"), 0) + 1
+            start_counts.append(len(e.get("valid_starts", ())))
         stats = f"davis={type_counts['davis']}, ytbv={type_counts['ytbv']}, " \
                 f"neg_1={neg_counts.get('neg_1', 0)}, neg_2={neg_counts.get('neg_2', 0)}"
         print(f"DPODataset: {len(self.entries)} entries from {self.dpo_data_root} ({stats})")
+        if start_counts:
+            avg_starts = sum(start_counts) / len(start_counts)
+            print(
+                "DPODataset starts: "
+                f"avg_valid_starts={avg_starts:.1f}, "
+                f"min_valid_starts={min(start_counts)}, "
+                f"max_valid_starts={max(start_counts)}"
+            )
 
     def __len__(self):
         return len(self.entries)
@@ -380,31 +404,42 @@ class DPODataset(torch.utils.data.Dataset):
         return [Image.open(os.path.join(mask_dir, all_files[i])).convert("L")
                 for i in frame_indices]
 
-    def _get_chunk_aligned_start(self, entry):
-        """根据 meta.json chunk 边界选择采样起始点，避免跨缝合线。"""
+    def _enumerate_valid_starts(self, entry):
+        """列举当前 entry 的所有合法 start，供无放回轮转采样。"""
         chunks = entry.get("chunks")
-        if not chunks:
-            # fallback: 随机采样
-            max_start = entry["num_frames"] - self.nframes
-            return random.randint(0, max(0, max_start))
+        if self.chunk_aligned and chunks:
+            valid_starts = []
+            for chunk in chunks:
+                c_start = int(chunk.get("start", 0))
+                c_end = int(chunk.get("end", 0))
+                chunk_len = c_end - c_start
+                if chunk_len >= self.nframes:
+                    valid_starts.extend(range(c_start, c_end - self.nframes + 1))
+            if valid_starts:
+                return sorted(set(valid_starts))
 
-        # 从所有 chunk 中随机选择一个能容纳 nframes 的 chunk
-        valid_starts = []
-        for chunk in chunks:
-            c_start = chunk.get("start", 0)
-            c_end = chunk.get("end", 0)
-            chunk_len = c_end - c_start
-            if chunk_len >= self.nframes:
-                # 可以在这个 chunk 内随机选起点
-                for s in range(c_start, c_end - self.nframes + 1):
-                    valid_starts.append(s)
+        max_start = entry["num_frames"] - self.nframes
+        return list(range(0, max(0, max_start) + 1))
 
-        if valid_starts:
-            return random.choice(valid_starts)
-        else:
-            # fallback
-            max_start = entry["num_frames"] - self.nframes
-            return random.randint(0, max(0, max_start))
+    def set_epoch(self, epoch: int):
+        self.current_epoch = int(epoch)
+
+    def _get_cycle_order(self, entry, cycle_id: int):
+        cache_key = (entry["cycle_key"], cycle_id)
+        if cache_key not in self._cycle_order_cache:
+            start_order = list(entry["valid_starts"])
+            rng = random.Random(f"{self.base_seed}:{entry['cycle_key']}:{cycle_id}")
+            rng.shuffle(start_order)
+            self._cycle_order_cache[cache_key] = tuple(start_order)
+        return self._cycle_order_cache[cache_key]
+
+    def _next_start(self, entry):
+        total_starts = len(entry["valid_starts"])
+        global_visit_index = self.current_epoch * entry.get("cycle_repeats", 1) + entry.get("cycle_slot", 0)
+        cycle_id = global_visit_index // total_starts
+        cycle_pos = global_visit_index % total_starts
+        start_order = self._get_cycle_order(entry, cycle_id)
+        return start_order[cycle_pos]
 
     def tokenize_captions(self, caption):
         if random.random() < self.args.proportion_empty_prompts:
@@ -429,13 +464,8 @@ class DPODataset(torch.utils.data.Dataset):
         if entry["video_dir_name"] in self.runtime_bad_videos:
             raise RuntimeError(f"Video already marked bad at runtime: {entry['video_dir_name']}")
 
-        # 选择连续 nframes 帧的起始位置
-        if self.chunk_aligned:
-            start = self._get_chunk_aligned_start(entry)
-        else:
-            max_start = entry["num_frames"] - self.nframes
-            start = random.randint(0, max(0, max_start))
-
+        # 每个视频的合法 start 先无放回穷尽一轮，再重新洗牌重复
+        start = self._next_start(entry)
         frame_indices = list(range(start, start + self.nframes))
 
         gt_frames = self._read_frames(entry["gt_dir"], frame_indices)
